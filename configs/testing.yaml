@@ -1,0 +1,25 @@
+defaults:
+  # Declare the config group without selecting a default environment. This
+  # allows evaluation commands to use `envs=hotpotqa` instead of `+envs=...`.
+  - envs: null
+  - _self_
+
+pretrained_path: ""
+num_samples: -1
+use_last: False
+log_filename: null  # default is derived from task/seed when not specified
+
+num_runs: 1
+
+#you can also rewrite any parameter from training config in this config:
+seed: 42
+device: 'cuda'
+random_sampling: false #choice: if true then samples are choosen randomly
+envs:
+  num_sentences: 50
+  #max_steps: 6
+  #max_chunks_count: 2000
+
+
+
+

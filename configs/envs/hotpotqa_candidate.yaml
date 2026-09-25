@@ -1,0 +1,64 @@
+max_steps: 2
+task: "hotpotqa"
+data_path: "/home/a.anokhin/Judge/output/hotpotqa_guided/hotpot_candidate_train.jsonl"
+test_data_path: "/home/a.anokhin/Judge/datasets/data_sources/hotpotqa"
+sort_by_index: False
+
+positions_processor: none
+
+positions_processor_dict:
+  none:
+    _target_: envs.text_env.AbsolutePositionProcessor
+  absolute:
+    _target_: envs.text_env.AbsolutePositionProcessor
+  random:
+    _target_: envs.text_env.RandomPositionProcessor
+    max_chunks_count: 2000
+  relative:
+    _target_: envs.text_env.RelativePositionProcessor
+    step_size: 20
+
+# Train dataset: preprocessed JSONL with candidates/judgements/betas
+train_dataset:
+  _target_: envs.CandidateDataset
+  path: ${envs.data_path}
+  split: 'train'
+  seed: ${seed}
+
+# Test dataset: standard HotpotQA dev split
+test_dataset:
+  _target_: envs.RetrievalHotPotQA
+  path: ${envs.test_data_path}
+  split: 'eval'
+  seed: ${seed}
+
+# Core Environment Configuration
+env:
+  _target_: envs.qa_env.QAEnv
+  max_steps: ${envs.max_steps}
+  action_embed_length: ${max_action_length}
+  max_action_length_in_memory: ${max_action_length_in_memory}
+  separator: " [SEP] "
+  sort_by_index: ${envs.sort_by_index}
+  positions_processor: ${envs.positions_processor_dict.${envs.positions_processor}}
+  feedback_model: ${feedback.feedback_dict.${feedback.type}}
+  log_reward_timing: ${log_reward_timing}
+  dataset:
+    _target_: envs.CandidateDatasetAdapter
+    dataset: ${envs.train_dataset}
+
+test_env:
+  _target_: envs.qa_env.QAEnv
+  max_steps: ${envs.env.max_steps}
+  action_embed_length: ${max_action_length}
+  max_action_length_in_memory: ${max_action_length_in_memory}
+  separator: ${envs.env.separator}
+  sort_by_index: ${envs.sort_by_index}
+  positions_processor: ${envs.env.positions_processor}
+  feedback_model:
+    _target_: rl.feedback.GroundTruthFeedback
+    penalize_extra_steps: False
+  dataset:
+    _target_: envs.QADatasetAdapter
+    dataset: ${envs.test_dataset}
+

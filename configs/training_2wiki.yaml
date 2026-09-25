@@ -1,0 +1,18 @@
+defaults:
+  - algo: pqn_gte_oleg
+  - envs: 2wiki_candidate
+  - feedback: candidate_beta
+  - logger: logging
+  - _self_
+
+seed: 42
+device: 'cuda'
+learning_start: 200
+steps_count: 20_000
+batch_size: 128
+accumulate_grads: 1
+eval_interval: 100
+eval_episodes: 200
+envs_parallel: 1
+max_action_length: 256
+max_action_length_in_memory: 256

@@ -1,0 +1,63 @@
+type: info_gain
+
+never_terminate: True
+
+model: ${oc.env:VLLM_MODEL,Qwen/Qwen3-4B}
+use_api: true
+api_base_url: ${oc.env:VLLM_BASE_URL,http://localhost:10001/v1}
+api_key: ${oc.env:VLLM_API_KEY,''}
+max_at_same_time: 20
+ig_n_samples: 12                          # M in the paper; 12 is the recommended elbow (Sec 5.6)
+ig_reward_mode: "golden_class"            # golden_class (Eq.17) | entropy_reduction (Eq.15)
+ig_reward_scaling: 0.6                    # λ in the paper (Eq. 18); 0.6 is optimal (Table 2)
+ig_em_weight: 1.0                         # weight for exact-match term at episode end (Eq. 18)
+ig_nli_model: "microsoft/deberta-base-mnli"
+ig_nli_device: "cpu"                      # NLI model device; "cpu" saves GPU for vLLM
+ig_nli_threshold: 0.5                     # τ for bidirectional NLI entailment decisions (Def 4.1)
+ig_cache_prior: true                      # cache prior belief per episode (question doesn't change)
+ig_sampling_params:
+  max_tokens: 512
+  temperature: 0.7                        # must be >0 for diverse sampling
+  top_p: 0.9
+
+# Info-gain diagnostics (INFO / DEBUG on logger ``rl.feedback.info_gain_feedback``)
+ig_log_reward_every_step: true           # true: log SSIG breakdown every env step (very verbose)
+ig_log_max_answer_chars: 512             # truncation for vLLM answer strings in logs
+ig_use_sample_logprobs: true               # Eq. 13: request vLLM token logprobs and normalize weights
+
+info_gain:
+  _target_: rl.feedback.InfoGainFeedback
+  task: ${envs.task}
+  vllm_client:
+    _target_: vLLM_clients.vllm_client.BasicVllmClient
+    model: ${feedback.model}
+    base_url: ${feedback.api_base_url}
+    max_tokens: ${feedback.ig_sampling_params.max_tokens}
+    thinking: false
+    api_key: ${feedback.api_key}
+    max_concurrent: ${feedback.max_at_same_time}
+  sampling_temperature: ${feedback.ig_sampling_params.temperature}
+  sampling_top_p: ${feedback.ig_sampling_params.top_p}
+  prompt_formatter:
+    _target_: rl.feedback.info_gain_feedback.InfoGainPromptFormatter
+  n_samples: ${feedback.ig_n_samples}
+  reward_scaling: ${feedback.ig_reward_scaling}
+  reward_mode: ${feedback.ig_reward_mode}
+  nli_model_name: ${feedback.ig_nli_model}
+  nli_device: ${feedback.ig_nli_device}
+  nli_threshold: ${feedback.ig_nli_threshold}
+  cache_prior: ${feedback.ig_cache_prior}
+  em_weight: ${feedback.ig_em_weight}
+  never_terminate: ${feedback.never_terminate}
+  log_reward_every_step: ${feedback.ig_log_reward_every_step}
+  log_max_answer_chars: ${feedback.ig_log_max_answer_chars}
+  use_sample_logprobs: ${feedback.ig_use_sample_logprobs}
+
+ground_truth: 
+  _target_: rl.feedback.GroundTruthFeedback
+  penalize_extra_steps: True
+  never_terminate: True
+  
+feedback_dict:
+  gt: ${feedback.ground_truth}
+  info_gain: ${feedback.info_gain}

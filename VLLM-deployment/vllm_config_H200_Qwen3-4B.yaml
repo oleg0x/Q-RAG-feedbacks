@@ -1,0 +1,16 @@
+served_model_name: Qwen3-4B
+model: /models
+host: 0.0.0.0
+port: 9314
+tensor_parallel_size: 1
+gpu_memory_utilization: 0.94
+swap_space: 0
+max_model_len: 32768
+max_num_seqs: 1024
+max_num_batched_tokens: 50000
+block_size: 16
+enforce_eager: false
+enable_prefix_caching: true
+disable_sliding_window: false
+enable_chunked_prefill: true
+disable-log-stats: true

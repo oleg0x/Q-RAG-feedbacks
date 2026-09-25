@@ -1,0 +1,14 @@
+type: gold_shift_math
+never_terminate: true
+
+gold_shift_math:
+  _target_: rl.feedback.GoldShiftFeedbackMATH
+  api_base_url: ${oc.env:VLLM_BASE_URL,http://localhost:8000}
+  model_name: ${oc.env:VLLM_MODEL,Qwen/Qwen3-4B}
+  api_key: ${oc.env:VLLM_API_KEY,''}
+  only_at_final: true
+  never_terminate: ${feedback.never_terminate}
+  reward_scaling: 0.1
+
+feedback_dict:
+  gold_shift_math: ${feedback.gold_shift_math}

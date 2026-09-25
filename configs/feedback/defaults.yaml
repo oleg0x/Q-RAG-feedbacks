@@ -1,0 +1,216 @@
+type: info_gain
+# type=gt # for ground truth from facts
+# type=babilong_em # for exact match from LLM generated answers with babilong prompts
+# type=sep # for semantic entropy probe reward (requires a trained probe, see train_semantic_entropy_probe.py)
+# type=info_gain # for InfoReasoner-style information-gain reward via semantic uncertainty reduction
+
+# to run babilong_em you need to start vllm server on a different set of GPU's:
+# CUDA_VISIBLE_DEVICES=1 vllm serve Qwen/Qwen3-4B --host 127.0.0.1 --port 10001 --api-key "$VLLM_API_KEY" --served-model-name feedback --gpu-memory-utilization 0.5 --max-model-len 2k --tensor-parallel-size 1
+# then change two parameters of this config:
+# feedback.model='feedback' feedback.use_api=true
+# keep in mind that if you access vllm via api vllm_config dict in this config will be ignored
+
+never_terminate: True
+
+ground_truth: 
+  _target_: rl.feedback.GroundTruthFeedback
+  penalize_extra_steps: True
+  never_terminate: True
+
+exact_match: 
+  _target_: rl.feedback.AnswerMetricFeedback
+  llm_generator:
+    _target_: rl.feedback.LLMGenerator
+    use_api: ${feedback.use_api}
+    model_name: ${feedback.model}
+    sampling_params: ${feedback.sampling_params}
+    vllm_config: ${feedback.vllm_config}
+    api_base_url: ${feedback.api_base_url}
+    api_key: ${feedback.api_key}
+    max_at_same_time: ${feedback.max_at_same_time}
+    prepare_messages_func: ${feedback.prompt_formatter}
+    disable_thinking: False #only for Qwen3 models, remove for other models
+
+  metric: ${feedback.metric}
+  completion_threshold: ${feedback.reward_scaling}
+  reward_scaling: ${feedback.reward_scaling}
+  never_terminate: ${feedback.never_terminate}
+
+sep:
+  _target_: rl.feedback.SEPFeedback
+  probe_path: ${feedback.sep_probe_path}
+  model_name: ${feedback.sep_model_name}
+  task: ${envs.task}
+  reward_mode: ${feedback.sep_reward_mode}
+  reward_scaling: ${feedback.reward_scaling}
+  threshold: ${feedback.sep_threshold}
+  only_at_final: ${feedback.sep_only_at_final}
+  never_terminate: ${feedback.never_terminate}
+  device: ${feedback.sep_device}
+  torch_dtype: ${feedback.sep_torch_dtype}
+  max_new_tokens: ${feedback.sep_max_new_tokens}
+  log_reward_every_step: ${feedback.sep_log_reward_every_step}
+  log_max_chars: ${feedback.sep_log_max_chars}
+
+info_gain:
+  _target_: rl.feedback.InfoGainFeedback
+  task: ${envs.task}
+  vllm_client:
+    _target_: vLLM_clients.vllm_client.BasicVllmClient
+    model: ${feedback.model}
+    base_url: ${feedback.api_base_url}
+    max_tokens: ${feedback.ig_sampling_params.max_tokens}
+    thinking: false
+    api_key: ${feedback.api_key}
+    max_concurrent: ${feedback.max_at_same_time}
+  sampling_temperature: ${feedback.ig_sampling_params.temperature}
+  sampling_top_p: ${feedback.ig_sampling_params.top_p}
+  prompt_formatter:
+    _target_: rl.feedback.info_gain_feedback.InfoGainPromptFormatter
+  n_samples: ${feedback.ig_n_samples}
+  reward_scaling: ${feedback.ig_reward_scaling}
+  reward_mode: ${feedback.ig_reward_mode}
+  nli_model_name: ${feedback.ig_nli_model}
+  nli_device: ${feedback.ig_nli_device}
+  nli_threshold: ${feedback.ig_nli_threshold}
+  cache_prior: ${feedback.ig_cache_prior}
+  em_weight: ${feedback.ig_em_weight}
+  never_terminate: ${feedback.never_terminate}
+  log_reward_every_step: ${feedback.ig_log_reward_every_step}
+  log_max_answer_chars: ${feedback.ig_log_max_answer_chars}
+  use_sample_logprobs: ${feedback.ig_use_sample_logprobs}
+
+# ── relevance_judge (terminal LLM judge + per-chunk relevance; needs vLLM) ──
+judge_model: ${feedback.model}
+judge_api_url: ${feedback.api_base_url}
+judge_max_tokens: 8
+relevance_reward_scaling: 0.2
+relevance_judge_max_concurrent: 20
+relevance_use_prior_chunks: true
+
+relevance_judge:
+  _target_: rl.feedback.RelevanceJudgeFeedback
+  task: ${envs.task}
+  llm_generator:
+    _target_: rl.feedback.LLMGenerator
+    use_api: ${feedback.use_api}
+    model_name: ${feedback.model}
+    sampling_params: ${feedback.sampling_params}
+    vllm_config: ${feedback.vllm_config}
+    api_base_url: ${feedback.api_base_url}
+    api_key: ${feedback.api_key}
+    max_at_same_time: ${feedback.max_at_same_time}
+    prepare_messages_func:
+      _target_: rl.feedback.info_gain_feedback.InfoGainPromptFormatter
+    disable_thinking: False
+  judge_api_url: ${feedback.judge_api_url}
+  judge_model_name: ${feedback.judge_model}
+  judge_api_key: ${feedback.api_key}
+  judge_max_tokens: ${feedback.judge_max_tokens}
+  judge_reward_scaling: ${feedback.reward_scaling}
+  relevance_reward_scaling: ${feedback.relevance_reward_scaling}
+  max_concurrent_judge_calls: ${feedback.relevance_judge_max_concurrent}
+  use_prior_chunks: ${feedback.relevance_use_prior_chunks}
+  only_at_final: True
+  never_terminate: ${feedback.never_terminate}
+
+feedback_dict:
+  gt: ${feedback.ground_truth}
+  babilong_em: ${feedback.exact_match}
+  sep: ${feedback.sep}
+  info_gain: ${feedback.info_gain}
+  relevance_judge: ${feedback.relevance_judge}
+  #llm: *llm_judge:
+  #  _target_: envs.text_env.RelativePositionProcessor
+
+
+model: ${oc.env:VLLM_MODEL,Qwen/Qwen3-4B}
+task: ${envs.task}
+reward_scaling: 1.0
+
+sampling_params:
+  max_tokens: 256
+  temperature: 0.0
+  top_p: 0.95
+
+vllm_config:
+  gpu_memory_utilization: 0.4
+  max_model_len: 4096
+  dtype: bfloat16
+  quantization: null
+  tensor_parallel_size: 1
+  trust_remote_code: true
+
+
+use_api: true
+api_base_url: ${oc.env:VLLM_BASE_URL,http://localhost:10001/v1}
+api_key: ${oc.env:VLLM_API_KEY,''}
+max_at_same_time: 20
+
+metric:
+  _target_: prompts_and_metrics.babilong.BabilongExactMatch
+
+prompt_formatter:
+  _target_: prompts_and_metrics.babilong.BabilongPromptFormatter
+  babi_task: ${envs.task}
+
+# ── SEP feedback defaults (Kossen et al. probe + Q-RAG reward shaping) ──
+# Set feedback.type=sep and point to a real pickle from train_semantic_entropy_probe.py, e.g.:
+#   feedback.sep_probe_path=runs/SEP_models/sep_probe_babi1000.pkl
+# sep_model_name must match the HF id used when training the probe (HiddenStateExtractor).
+sep_probe_path: "./runs/SEP_models/sep_probe_hotpot_2000_qwen3_last.pkl"
+sep_model_name: "Qwen/Qwen3-4B"
+sep_reward_mode: "uncertainty_penalty"   # uncertainty_penalty | uncertainty_drop | uncertainty_threshold
+sep_threshold: 0.5
+sep_only_at_final: true
+sep_device: "auto"
+sep_torch_dtype: "bfloat16"
+sep_max_new_tokens: 512           # max tokens to generate for probe inference;
+                                  # for TBG position hidden state is read before generation
+                                  # so this only affects the returned answer string;
+                                  # for SLT position must be >= longest expected answer
+# SEP diagnostics (logger ``rl.feedback.sep_feedback``): INFO line on final step by default;
+# set sep_log_reward_every_step=true for every env step (verbose in parallel training).
+#
+# For 2WikiMultihopQA:
+#   python train_semantic_entropy_probe.py --dataset 2wiki --dataset_path ../datasets/2WikiMultiHopQA \
+#       --split train --model_name Qwen/Qwen3-4B --max_samples 2000 \
+#       --output runs/SEP_models/sep_probe_2wiki.pkl
+#   python train_q_rag.py feedback=defaults feedback.type=sep feedback.task=2WikiMultihopQA \
+#       feedback.sep_probe_path=runs/SEP_models/sep_probe_2wiki.pkl feedback.sep_model_name=Qwen/Qwen3-4B
+sep_log_reward_every_step: false
+sep_log_max_chars: 512
+
+# ── Information Gain feedback defaults (InfoReasoner) ──
+# to use: feedback.type=info_gain
+# requires the same vLLM server as babilong_em (see comments at top)
+# optionally override: feedback.ig_reward_mode=entropy_reduction feedback.ig_n_samples=8
+#
+# For HotpotQA:
+#   python train_q_rag.py envs=hotpotqa feedback.type=info_gain feedback.use_api=true feedback.model=feedback \
+#       feedback.task=HotPotQA
+#
+# For 2WikiMultihopQA (train_q_rag.py defaults to training_2wiki.yaml):
+#   python train_q_rag.py feedback=defaults feedback.type=info_gain feedback.task=2WikiMultihopQA \
+#       feedback.model=feedback feedback.api_base_url=http://127.0.0.1:10001/v1
+#
+# For BabiLong:
+#   python train_q_rag.py envs=babilong feedback.type=info_gain feedback.use_api=true feedback.model=feedback \
+#       envs.task="qa3_three-supporting-facts"
+ig_n_samples: 12                          # M in the paper; 12 is the recommended elbow (Sec 5.6)
+ig_reward_mode: "golden_class"            # golden_class (Eq.17) | entropy_reduction (Eq.15)
+ig_reward_scaling: 0.6                    # λ in the paper (Eq. 18); 0.6 is optimal (Table 2)
+ig_em_weight: 1.0                         # weight for exact-match term at episode end (Eq. 18)
+ig_nli_model: "microsoft/deberta-base-mnli"
+ig_nli_device: "cpu"                      # NLI model device; "cpu" saves GPU for vLLM
+ig_nli_threshold: 0.5                     # τ for bidirectional NLI entailment decisions (Def 4.1)
+ig_cache_prior: true                      # cache prior belief per episode (question doesn't change)
+ig_sampling_params:
+  max_tokens: 512
+  temperature: 0.7                        # must be >0 for diverse sampling
+  top_p: 0.9
+
+# Info-gain diagnostics (INFO / DEBUG on logger ``rl.feedback.info_gain_feedback``)
+ig_log_reward_every_step: true           # true: log SSIG breakdown every env step (very verbose)
+ig_log_max_answer_chars: 512             # truncation for vLLM answer strings in logs
+ig_use_sample_logprobs: true               # Eq. 13: request vLLM token logprobs and normalize weights

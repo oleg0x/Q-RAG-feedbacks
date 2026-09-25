@@ -1,0 +1,57 @@
+task: HellaSwag
+data_path: ${oc.env:HELLASWAG_DATA_PATH,./data/q_icl/hellaswag}
+max_steps: 2
+sort_by_index: false
+positions_processor: none
+
+positions_processor_dict:
+  none:
+    _target_: envs.text_env.AbsolutePositionProcessor
+  absolute:
+    _target_: envs.text_env.AbsolutePositionProcessor
+  random:
+    _target_: envs.text_env.RandomPositionProcessor
+    max_chunks_count: 2000
+  relative:
+    _target_: envs.text_env.RelativePositionProcessor
+    step_size: 20
+
+train_dataset:
+  _target_: envs.RetrievalHellaSwag
+  path: ${envs.data_path}
+  split: train
+  samples_num: 37000
+  examples_num: 2000
+
+test_dataset:
+  _target_: envs.RetrievalHellaSwag
+  path: ${envs.data_path}
+  split: test
+  samples_num: 10000
+  examples_num: 2000
+
+env:
+  _target_: envs.qa_env.QAEnv
+  max_steps: ${envs.max_steps}
+  action_embed_length: ${max_action_length}
+  max_action_length_in_memory: ${max_action_length_in_memory}
+  separator: " [SEP] "
+  sort_by_index: ${envs.sort_by_index}
+  positions_processor: ${envs.positions_processor_dict.${envs.positions_processor}}
+  feedback_model: ${feedback.feedback_dict.${feedback.type}}
+  dataset:
+    _target_: envs.QADatasetAdapter
+    dataset: ${envs.train_dataset}
+
+test_env:
+  _target_: envs.qa_env.QAEnv
+  max_steps: ${envs.max_steps}
+  action_embed_length: ${max_action_length}
+  max_action_length_in_memory: ${max_action_length_in_memory}
+  separator: " [SEP] "
+  sort_by_index: ${envs.sort_by_index}
+  positions_processor: ${envs.positions_processor_dict.${envs.positions_processor}}
+  feedback_model: ${feedback.feedback_dict.${feedback.type}}
+  dataset:
+    _target_: envs.QADatasetAdapter
+    dataset: ${envs.test_dataset}

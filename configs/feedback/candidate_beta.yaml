@@ -1,0 +1,22 @@
+type: candidate_beta
+
+never_terminate: True
+
+ground_truth: 
+  _target_: rl.feedback.GroundTruthFeedback
+  penalize_extra_steps: True
+  never_terminate: True
+
+candidate_beta:
+  _target_: rl.feedback.CandidateBetaFeedback
+  api_base_url: ${oc.env:VLLM_BASE_URL,http://localhost:8000}
+  model_name: ${oc.env:VLLM_MODEL,Qwen/Qwen3-4B}
+  api_key: ${oc.env:VLLM_API_KEY,''}
+  max_concurrent: 1
+  only_at_final: True
+  never_terminate: ${feedback.never_terminate}
+  reward_scaling: 0.02
+
+feedback_dict:
+  gt: ${feedback.ground_truth}
+  candidate_beta: ${feedback.candidate_beta}

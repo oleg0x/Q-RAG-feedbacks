@@ -1,0 +1,183 @@
+# Base Answer-Quality Rewards for Q-RAG training.
+#
+# Standalone answer-quality rewards that share a single LLMGenerator for answer
+# generation and differ only in how the generated answer is compared to gold:
+#
+#   em                  — SQuAD-style Exact Match          ∈ {0, 1}
+#   f1                  — SQuAD-style token-level F1       ∈ [0, 1]
+#   semantic_similarity — cosine sim via Qwen3-Embedding   ∈ [0, 1]
+#   llm_judge           — Qwen3-4B yes/no judge            ∈ {0, 1}
+#
+# Related rewards live in other feedback configs:
+#   feedback=relevance_judge   — per-chunk LLM relevance + llm_judge
+#   feedback=keyword_rewards   — keyword_f1_judge / answer_critical_judge
+#
+# Usage:
+#   python train_q_rag.py -feedback=base_rewards feedback.type=em
+#   python train_q_rag.py -feedback=base_rewards feedback.type=f1
+#   python train_q_rag.py -feedback=base_rewards feedback.type=semantic_similarity
+#   python train_q_rag.py -feedback=base_rewards feedback.type=llm_judge
+#
+# BabiLong: override the answer formatter, e.g.:
+#   python train_q_rag.py envs=babilong feedback.type=llm_judge \
+#     feedback._formatter._target_=prompts_and_metrics.babilong.BabilongPromptFormatter \
+#     feedback._formatter.babi_task=qa3_three-supporting-facts
+#
+# Prerequisites — start vLLM answer/judge server:
+#   CUDA_VISIBLE_DEVICES=1 vllm serve Qwen/Qwen3-4B \
+#     --host 127.0.0.1 --port 10001 \
+#     --api-key keykey --served-model-name feedback \
+#     --gpu-memory-utilization 0.5 --max-model-len 4k
+
+type: llm_judge
+
+never_terminate: True
+
+# Default formatter for all LLMGenerator blocks (`*_formatter` anchor below).
+#
+# Prefer dotted overrides — NOT `feedback.prompt_formatter=Foo` — or Hydra can turn `prompt_formatter`
+# into a plain string and `prepare_messages_func` becomes uncalled-able.
+# Correct:
+#   feedback._formatter._target_=prompts_and_metrics.general_qa.SysQAPromptFormatter
+_formatter: &_formatter
+  _target_: prompts_and_metrics.general_qa.SysQAPromptFormatter # rl.feedback.info_gain_feedback.InfoGainPromptFormatter
+
+# ── Shared general params (same names as defaults.yaml / feedback namespace) ──
+
+model: "feedback"           # --served-model-name on the vLLM server
+reward_scaling: 1.0
+
+use_api: true
+api_base_url: "http://localhost:8000/v1"
+api_key: "keykey"
+max_at_same_time: 20
+
+sampling_params:
+  max_tokens: 32            # short factoid answers only need a few tokens
+  temperature: 0.0
+  top_p: 0.95
+
+vllm_config:                # used only when use_api=false (in-process vLLM)
+  gpu_memory_utilization: 0.4
+  max_model_len: 4096
+  dtype: bfloat16
+  quantization: null
+  tensor_parallel_size: 1
+  trust_remote_code: true
+
+# HotpotQA / MuSiQue: pick one of these (both are general RAG-QA, no Babi task id):
+#   - InfoGainPromptFormatter — InfoReasoner-style ("only the answer", document list)
+#   - SysQAPromptFormatter — prompts.sys_qa ("Final Answer:"), same spirit as LlmAnswer HotPot
+# BabiLong (override `_formatter`): BabilongPromptFormatter + e.g.
+#   feedback._formatter._target_=prompts_and_metrics.babilong.BabilongPromptFormatter \
+#   feedback._formatter.babi_task=qa3_three-supporting-facts
+prompt_formatter: *_formatter
+
+# ── Custom hyperparameters: semantic_similarity ───────────────────────────────
+# The embedding model runs locally (no extra server required).
+# On a multi-GPU machine, set sem_embed_device to a GPU not used by vLLM.
+
+sem_embed_model: "Qwen/Qwen3-Embedding-0.6B"
+sem_embed_device: "cuda:0"     # "cuda:1" to offload to a separate GPU
+sem_embed_fp16: false       # set true with sem_embed_device=cuda:X to save VRAM
+
+# ── Custom hyperparameters: llm_judge ────────────────────────────────────────
+# By default the judge uses the same vLLM server as the answer generator.
+# Point judge_api_url at a different port/host if running a separate server.
+
+judge_model: ${feedback.model}     # --served-model-name for the judge vLLM server
+judge_api_url: ${feedback.api_base_url}   # same server as answer generator
+judge_max_tokens: 8         # "yes" / "no" needs very few tokens
+
+# ── Ground truth (supplementary reward for combined configs) ─────────────────
+
+ground_truth:
+  _target_: rl.feedback.GroundTruthFeedback
+  penalize_extra_steps: True
+  never_terminate: True
+
+# ── Reward definitions ────────────────────────────────────────────────────────
+
+em:
+  _target_: rl.feedback.EMFeedback
+  llm_generator:
+    _target_: rl.feedback.LLMGenerator
+    use_api: ${feedback.use_api}
+    model_name: ${feedback.model}
+    sampling_params: ${feedback.sampling_params}
+    vllm_config: ${feedback.vllm_config}
+    api_base_url: ${feedback.api_base_url}
+    api_key: ${feedback.api_key}
+    max_at_same_time: ${feedback.max_at_same_time}
+    prepare_messages_func: *_formatter
+    disable_thinking: True   # strip <think> tokens; set False for non-Qwen3 models
+  only_at_final: True
+  reward_scaling: ${feedback.reward_scaling}
+  never_terminate: ${feedback.never_terminate}
+
+f1:
+  _target_: rl.feedback.F1Feedback
+  llm_generator:
+    _target_: rl.feedback.LLMGenerator
+    use_api: ${feedback.use_api}
+    model_name: ${feedback.model}
+    sampling_params: ${feedback.sampling_params}
+    vllm_config: ${feedback.vllm_config}
+    api_base_url: ${feedback.api_base_url}
+    api_key: ${feedback.api_key}
+    max_at_same_time: ${feedback.max_at_same_time}
+    prepare_messages_func: *_formatter
+    disable_thinking: True
+  only_at_final: True
+  reward_scaling: ${feedback.reward_scaling}
+  never_terminate: ${feedback.never_terminate}
+
+semantic_similarity:
+  _target_: rl.feedback.SemanticSimilarityFeedback
+  llm_generator:
+    _target_: rl.feedback.LLMGenerator
+    use_api: ${feedback.use_api}
+    model_name: ${feedback.model}
+    sampling_params: ${feedback.sampling_params}
+    vllm_config: ${feedback.vllm_config}
+    api_base_url: ${feedback.api_base_url}
+    api_key: ${feedback.api_key}
+    max_at_same_time: ${feedback.max_at_same_time}
+    prepare_messages_func: *_formatter
+    disable_thinking: True
+  embed_model_name: ${feedback.sem_embed_model}
+  embed_device: ${feedback.sem_embed_device}
+  embed_use_fp16: ${feedback.sem_embed_fp16}
+  only_at_final: True
+  reward_scaling: ${feedback.reward_scaling}
+  never_terminate: ${feedback.never_terminate}
+
+llm_judge:
+  _target_: rl.feedback.LLMJudgeFeedback
+  llm_generator:
+    _target_: rl.feedback.LLMGenerator
+    use_api: ${feedback.use_api}
+    model_name: ${feedback.model}
+    sampling_params: ${feedback.sampling_params}
+    vllm_config: ${feedback.vllm_config}
+    api_base_url: ${feedback.api_base_url}
+    api_key: ${feedback.api_key}
+    max_at_same_time: ${feedback.max_at_same_time}
+    prepare_messages_func: *_formatter
+    disable_thinking: True
+  judge_api_url: ${feedback.judge_api_url}
+  judge_model_name: ${feedback.judge_model}
+  judge_api_key: ${feedback.api_key}
+  judge_max_tokens: ${feedback.judge_max_tokens}
+  only_at_final: True
+  reward_scaling: ${feedback.reward_scaling}
+  never_terminate: ${feedback.never_terminate}
+
+# ── Feedback dictionary (maps feedback.type → instantiated reward object) ─────
+
+feedback_dict:
+  gt: ${feedback.ground_truth}
+  em: ${feedback.em}
+  f1: ${feedback.f1}
+  semantic_similarity: ${feedback.semantic_similarity}
+  llm_judge: ${feedback.llm_judge}

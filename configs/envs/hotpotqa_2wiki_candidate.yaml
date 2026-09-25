@@ -1,0 +1,86 @@
+task: HotPotQA+2WikiMultihopQA
+max_steps: 6
+sort_by_index: false
+
+train_data_path: ${oc.env:Q_RAG_COMBINED_CANDIDATE_PATH,../output/combined/hotpotqa_2wiki_candidate_train_q0_s1.jsonl}
+hotpotqa_eval_path: ${oc.env:HOTPOTQA_DATA_PATH,../datasets/data_sources/hotpotqa}
+twowiki_eval_path: ${oc.env:TWOWIKI_DATA_PATH,../datasets/data_sources/2WikiMultiHopQA/data_ids_april7}
+eval_samples_per_dataset: 500
+positions_processor: none
+
+positions_processor_dict:
+  none:
+    _target_: envs.text_env.AbsolutePositionProcessor
+  absolute:
+    _target_: envs.text_env.AbsolutePositionProcessor
+  random:
+    _target_: envs.text_env.RandomPositionProcessor
+    max_chunks_count: 2000
+  relative:
+    _target_: envs.text_env.RelativePositionProcessor
+    step_size: 20
+
+train_dataset:
+  _target_: envs.CombinedCandidateDataset
+  path: ${envs.train_data_path}
+  split: train
+  seed: ${seed}
+
+hotpotqa_eval_dataset_raw:
+  _target_: envs.RetrievalHotPotQA
+  path: ${envs.hotpotqa_eval_path}
+  split: eval
+  seed: ${seed}
+
+hotpotqa_eval_dataset:
+  _target_: envs.MinChunksDataset
+  dataset: ${envs.hotpotqa_eval_dataset_raw}
+  min_chunks: ${envs.max_steps}
+  length: ${envs.eval_samples_per_dataset}
+
+twowiki_eval_dataset_raw:
+  _target_: envs.Retrieval2WikiMultihopQA
+  path: ${envs.twowiki_eval_path}
+  split: dev
+  skip_bridge_comparison: false
+  seed: ${seed}
+
+twowiki_eval_dataset:
+  _target_: envs.MinChunksDataset
+  dataset: ${envs.twowiki_eval_dataset_raw}
+  min_chunks: ${envs.max_steps}
+  length: ${envs.eval_samples_per_dataset}
+
+test_dataset:
+  _target_: envs.RetrievalCombinedHotpot2Wiki
+  hotpotqa: ${envs.hotpotqa_eval_dataset}
+  twowiki: ${envs.twowiki_eval_dataset}
+  shuffle: false
+  seed: ${seed}
+
+env:
+  _target_: envs.qa_env.QAEnv
+  max_steps: ${envs.max_steps}
+  action_embed_length: ${max_action_length}
+  max_action_length_in_memory: ${max_action_length_in_memory}
+  separator: " [SEP] "
+  sort_by_index: ${envs.sort_by_index}
+  positions_processor: ${envs.positions_processor_dict.${envs.positions_processor}}
+  feedback_model: ${feedback.feedback_dict.${feedback.type}}
+  dataset:
+    _target_: envs.CandidateDatasetAdapter
+    dataset: ${envs.train_dataset}
+    min_chunks: ${envs.max_steps}
+
+test_env:
+  _target_: envs.qa_env.QAEnv
+  max_steps: ${envs.max_steps}
+  action_embed_length: ${max_action_length}
+  max_action_length_in_memory: ${max_action_length_in_memory}
+  separator: " [SEP] "
+  sort_by_index: ${envs.sort_by_index}
+  positions_processor: ${envs.positions_processor_dict.${envs.positions_processor}}
+  feedback_model: ${feedback.feedback_dict.${feedback.type}}
+  dataset:
+    _target_: envs.QADatasetAdapter
+    dataset: ${envs.test_dataset}

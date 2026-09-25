@@ -1,0 +1,19 @@
+defaults:
+  - algo: pqn_gte
+  - envs: hotpotqa+musique+2wikimultihopqa
+  - feedback: defaults
+  - logger: logging
+  - _self_
+
+seed: 42
+device: 'cuda:0'
+learning_start: 200
+steps_count: 70_000
+batch_size: 16
+accumulate_grads: 2
+train_action_embed: true
+eval_interval: 100
+eval_episodes: 300
+envs_parallel: 1
+max_action_length: 256
+max_action_length_in_memory: 256
