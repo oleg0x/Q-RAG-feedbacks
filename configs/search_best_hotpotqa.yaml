@@ -1,0 +1,53 @@
+# Ступень 5 лестницы линии A: обученная state-башня на полном dev HotpotQA.
+#
+# Читается в паре с двумя строками того же датасета: zero-shot той же башни
+# (27.16% EM, order 47) отделяет вклад обучения от вклада самой схемы прямого
+# поиска, а GTE top-6 N=2 (29.29%) — сильнейший first-stage на том же бюджете
+# чанков. Обе пары посчитаны парным МакНемаром в RESULTS.md.
+#
+# Чекпоинт — model_best.pt рана Aug03_12-44-38_lineA_main, то есть optim_step
+# 12 000 из 30 000: правило выбора по judge-метрике записано в docs/training.md
+# до запуска. На eval-подвыборке в 1 000 вопросов он даёт 0.499 против 0.483 у
+# model_last, но кривая с шага ~7 000 стоит на плато 0.484 ± 0.005, поэтому
+# пик отстоит от плато примерно на одну сигму и различие чекпоинтов ожидается
+# неразличимым.
+label: Прямой поиск, обученная башня, 6 шагов, N=2
+slug: lineA-best-hotpotqa
+dataset: hotpotqa_dev_fullwiki
+
+order: 48
+hypothesis: >-
+  Обучение прямого поиска (PQN с калибровочной головой, 30 000 шагов на
+  HotpotQA+2Wiki train) поднимает answer-метрики на полном dev HotpotQA выше
+  zero-shot 27.16% EM и выше first-stage GTE top-6 N=2 29.29% на том же
+  бюджете в шесть чанков.
+
+retrieve:
+  kind: search
+  index_dir: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte
+  qrag_repo: /home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki
+  checkpoint: /home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki/runs/Aug03_12-44-38_lineA_main/model_best.pt
+  state_source: critic
+  input: /home/a.anokhin/Judge/datasets/data_sources/hotpotqa/hotpot_dev_fullwiki_v1.json
+  cuda_visible_devices: "6"
+  device: cuda:0
+  model_dtype: float32
+  batch_size: 64
+  top_k: 100
+  steps: 6
+  max_chunks_per_title: 2
+
+  # full, а не none: пул обученной башни нужно уметь сравнить с пулом стоковой
+  # на тех же вопросах. Дрейф пула при обучении (gold title recall 0.59 → 0.41)
+  # измерен только телеметрией на 1 000 вопросов, а candidate_pool.py report
+  # посчитает его на полном dev — но только если кандидаты сохранены.
+  log_candidates: full
+  auto_prepare: false
+
+judge:
+  script: /home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py
+  base_url: http://127.0.0.1:8010/v1
+  answer_model: Qwen3-4B
+  max_tokens: 1000
+  judge_max_tokens: 100
+  shards: 32

@@ -1,0 +1,46 @@
+# Обученная state-башня линии A на MuSiQue-Ans dev — единственный из трёх
+# датасетов, которого модель не видела при обучении.
+#
+# HotpotQA и 2Wiki in-domain: их train-сплиты и составили обучающую выборку.
+# MuSiQue не участвовал ни в каком виде, поэтому эта строка меряет перенос, а
+# не качество на знакомом распределении. Разница с zero-shot той же башни —
+# то, что обучение дало на незнакомом датасете.
+#
+# Берётся musique_ans, а не musique_full: у full те же 2 417 вопросов
+# продублированы неотвечаемыми двойниками, а ридер и судья отказ от ответа не
+# предусматривают — промпты лежат в read-only Q-RAG-feedback.
+label: Прямой поиск, обученная башня, 6 шагов, N=2
+slug: lineA-best-musique
+dataset: musique_ans_dev
+
+order: 48
+hypothesis: >-
+  Обучение прямого поиска переносится на незнакомый датасет: обученная башня
+  обгоняет свой zero-shot и на MuSiQue. Если разрыв здесь заметно меньше, чем
+  на HotpotQA и 2Wiki, значит выучена подгонка под распределение обучающих
+  вопросов, а не поиск как таковой.
+
+retrieve:
+  kind: search
+  index_dir: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte
+  qrag_repo: /home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki
+  checkpoint: /home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki/runs/Aug03_12-44-38_lineA_main/model_best.pt
+  state_source: critic
+  input: /home/a.anokhin/Judge/full-wiki/runs/shared/musique_ans_dev_hotpot_schema.jsonl
+  cuda_visible_devices: "6"
+  device: cuda:0
+  model_dtype: float32
+  batch_size: 64
+  top_k: 100
+  steps: 6
+  max_chunks_per_title: 2
+  log_candidates: full
+  auto_prepare: false
+
+judge:
+  script: /home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py
+  base_url: http://127.0.0.1:8010/v1
+  answer_model: Qwen3-4B
+  max_tokens: 1000
+  judge_max_tokens: 100
+  shards: 32

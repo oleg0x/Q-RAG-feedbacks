@@ -1,0 +1,56 @@
+# Тот же диагностический ретривал, что и gte_pool_diag.yaml, но пул в пять раз
+# шире: top-500 вместо top-100.
+#
+# Зачем. У 50.50% примеров, где первый gold-титул найден, второго в top-100
+# нет вообще, а медиана позиции второго gold — 12 при p90 = 63. Отсюда
+# вопрос: лечится ли это размером пула или второй хоп не достижим для GTE в
+# принципе. Ответ даёт title EM@pool и second_missing_given_first_found на
+# 100 → 500 → 1000.
+#
+# Почему steps: 1. В режиме fixed пул считается один раз и переиспользуется
+# каждым шагом, а candidate_pool.py report читает только
+# retrieval_hops[0]["first_stage_candidate_idx"]. Шесть шагов записали бы тот
+# же пул шесть раз — вшестеро больше диска без единого нового числа. Выбор
+# чанков этим раном не измеряется, поэтому стадии judge и score не нужны:
+# запускать как `--only retrieve`.
+label: GTE пул top-500 (диагностика)
+slug: gte-pool-diag-k500
+
+# Ран без метрик, в таблицу сравнения он не попадает.
+order: 901
+hypothesis: >-
+  Расширение пула со 100 до 500 кандидатов поднимает title EM@pool и
+  сокращает долю примеров, у которых второй gold-титул не дошёл до пула.
+
+retrieve:
+  kind: qrag
+  index_dir: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-qrag-jul21-best-raw
+  candidate_index_dir: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte
+  candidate_backend: torch-cuda
+  qrag_repo: /home/a.anokhin/Judge/Q-RAG-feedback
+  input: /home/a.anokhin/Judge/datasets/data_sources/hotpotqa/hotpot_dev_fullwiki_v1.json
+  cuda_visible_devices: "1"
+  device: cuda:0
+  model_dtype: float32
+  state_source: critic
+  batch_size: 64
+
+  # Единственные отличия от gte_pool_diag.yaml.
+  top_k: 500
+  steps: 1
+
+  mode: fixed
+  reranker: none
+  log_candidates: full
+
+  dedupe_titles: true
+  trust_remote_code: true
+  auto_prepare: false
+
+judge:
+  script: /home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py
+  base_url: http://127.0.0.1:8010/v1
+  answer_model: Qwen3-4B
+  max_tokens: 1000
+  judge_max_tokens: 100
+  shards: 32

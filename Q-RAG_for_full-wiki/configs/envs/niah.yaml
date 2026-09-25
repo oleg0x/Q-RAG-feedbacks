@@ -1,0 +1,59 @@
+max_steps: 5
+task: "mv_niah"
+data_path: "../RULER/mv_niah_4k/niah_multivalue"
+sort_by_index: False
+
+positions_processor: none
+
+positions_processor_dict:
+  none:
+    #this choice allows to ignore positional embeddings
+    #but inside the environment we still need to enumerate chunks
+    _target_: envs.text_env.AbsolutePositionProcessor
+  absolute:
+    _target_: envs.text_env.AbsolutePositionProcessor
+  random:
+    _target_: envs.text_env.RandomPositionProcessor
+    max_chunks_count: 2000
+  relative:
+    _target_: envs.text_env.RelativePositionProcessor
+    step_size: 20
+
+train_dataset: 
+  _target_: envs.NIAH
+  path: ${envs.data_path}
+  split: 'train'
+  seed: ${seed}
+
+test_dataset: 
+  _target_: envs.NIAH
+  path: ${envs.data_path}
+  split: 'test4k'
+  seed: ${seed}
+
+# Core Environment Configuration
+env:
+  _target_: envs.qa_env.QAEnv
+  max_steps: ${envs.max_steps}
+  action_embed_length: ${max_action_length}
+  max_action_length_in_memory: ${max_action_length_in_memory}
+  separator: " [SEP] "
+  sort_by_index: ${envs.sort_by_index}
+  positions_processor: ${envs.positions_processor_dict.${envs.positions_processor}}
+  feedback_model:
+    _target_: rl.feedback.GroundTruthFeedback
+    penalize_extra_steps: True
+  dataset: ${envs.train_dataset}
+   
+test_env:
+  _target_: envs.qa_env.QAEnv
+  max_steps: ${envs.env.max_steps}
+  action_embed_length: ${max_action_length}
+  max_action_length_in_memory: ${max_action_length_in_memory}
+  separator: ${envs.env.separator}
+  sort_by_index: ${envs.sort_by_index}
+  positions_processor: ${envs.env.positions_processor}
+  feedback_model:
+    _target_: rl.feedback.GroundTruthFeedback
+    penalize_extra_steps: True
+  dataset: ${envs.test_dataset}

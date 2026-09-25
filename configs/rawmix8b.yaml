@@ -1,0 +1,208 @@
+algo:
+  model:
+    model_name: Alibaba-NLP/gte-multilingual-base
+    revision: main
+    use_fast_tokenizer: true
+    predictor:
+      num_layers: 12
+      input_dim: 768
+      hidden_dim: 384
+      output_dim: 1
+      max_seq_len: 5000
+      interpolate_factor: 1
+  action_model:
+    _target_: rl.bert_predictor.BertPredictor
+    bert:
+      _target_: transformers.AutoModel.from_pretrained
+      pretrained_model_name_or_path: ${algo.model.model_name}
+      revision: ${algo.model.revision}
+      trust_remote_code: true
+    num_hidden_layers: ${algo.model.predictor.num_layers}
+    tokenizer:
+      _target_: transformers.AutoTokenizer.from_pretrained
+      pretrained_model_name_or_path: ${algo.model.model_name}
+      revision: ${algo.model.revision}
+      use_fast: ${algo.model.use_fast_tokenizer}
+      trust_remote_code: true
+    model_dim: ${algo.model.predictor.input_dim}
+    output_size: ${algo.model.predictor.hidden_dim}
+    n_output: ${algo.model.predictor.output_dim}
+  action_embed_dict:
+    absolute:
+      _target_: rl.bert_predictor.EmbedderWithAbsoluteEncoding
+      model: ${algo.action_model}
+      max_seq_len: ${algo.model.predictor.max_seq_len}
+    random:
+      _target_: rl.bert_predictor.EmbedderWithAbsoluteEncoding
+      model: ${algo.action_model}
+      max_seq_len: ${algo.model.predictor.max_seq_len}
+      interpolate_factor: ${algo.model.predictor.interpolate_factor}
+    relative:
+      _target_: rl.bert_predictor.EmbedderWithRelativeEncoding
+      model: ${algo.action_model}
+      max_seq_len: 1000
+    none:
+      _target_: rl.bert_predictor.EmbedderNone
+      model: ${algo.action_model}
+  pqn:
+    _target_: rl.pqn.PQN
+    state_embed:
+      _target_: rl.bert_predictor.BertPredictor
+      bert:
+        _target_: transformers.AutoModel.from_pretrained
+        pretrained_model_name_or_path: ${algo.model.model_name}
+        revision: ${algo.model.revision}
+        trust_remote_code: true
+      num_hidden_layers: ${algo.model.predictor.num_layers}
+      tokenizer:
+        _target_: transformers.AutoTokenizer.from_pretrained
+        pretrained_model_name_or_path: ${algo.model.model_name}
+        revision: ${algo.model.revision}
+        use_fast: ${algo.model.use_fast_tokenizer}
+        trust_remote_code: true
+      model_dim: ${algo.model.predictor.input_dim}
+      output_size: ${algo.model.predictor.hidden_dim}
+      n_output: ${algo.model.predictor.output_dim}
+      normalize: false
+    action_embed: ${algo.action_embed_dict.${envs.positions_processor}}
+    state_embed_target:
+      _target_: rl.bert_predictor.BertPredictor
+      bert:
+        _target_: transformers.AutoModel.from_pretrained
+        pretrained_model_name_or_path: ${algo.model.model_name}
+        revision: ${algo.model.revision}
+        trust_remote_code: true
+      num_hidden_layers: ${algo.model.predictor.num_layers}
+      tokenizer:
+        _target_: transformers.AutoTokenizer.from_pretrained
+        pretrained_model_name_or_path: ${algo.model.model_name}
+        revision: ${algo.model.revision}
+        use_fast: ${algo.model.use_fast_tokenizer}
+        trust_remote_code: true
+      model_dim: ${algo.model.predictor.input_dim}
+      output_size: ${algo.model.predictor.hidden_dim}
+      n_output: ${algo.model.predictor.output_dim}
+      normalize: false
+    action_embed_target: ${algo.action_embed_dict.${envs.positions_processor}}
+    hyperparams:
+      gamma: 0.99
+      alpha: 0.005
+      Lambda: 0.6
+      tau: 0.02
+      max_grad_norm: 2.0
+      accumulate_grads: ${accumulate_grads}
+      action_embed_length: ${max_action_length}
+      max_action_length_in_memory: ${max_action_length_in_memory}
+      train_state_embed: true
+      train_action_embed: ${train_action_embed}
+      top_k_actions: ${envs.top_k}
+      q_head:
+        scale_init: 0.048
+        lr: 0.001
+      alpha_schedule:
+        kind: constant
+        start: ${algo.pqn.hyperparams.alpha}
+    optimizer:
+      _target_: torch.optim.AdamW
+      lr: 5.0e-06
+      betas:
+      - 0.9
+      - 0.98
+      eps: 1.0e-06
+      weight_decay: 0.001
+    scheduler:
+      _target_: rl.optim.WarmupLinearScheduler
+      total: ${steps_count}
+      ratio: 0.1
+      warmup: 1000
+  optimizer:
+    lr: 5.0e-06
+  scheduler:
+    total: ${steps_count}
+    warmup: 1000
+    ratio: 0.1
+envs:
+  task: NQ+HotPotQA
+  max_steps: 6
+  top_k: 100
+  max_chunks_per_title: 2
+  separator: ' [SEP] '
+  feedback_workers: ${envs_parallel}
+  rollout_train_mode: false
+  positions_processor: none
+  positions_processor_dict:
+    none:
+      _target_: envs.text_env.AbsolutePositionProcessor
+  exploration:
+    epsilon: 0.1
+    injection_sampling: boltzmann
+    temperature:
+      kind: linear
+      start: 1.0
+      final: 0.3
+      warmup: 0
+      total: ${steps_count}
+  index:
+    shard_dir: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte/embedding-shards
+    rows: 21015324
+    dim: 768
+  title_table: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte/corpus-title-ids.npy
+  corpus: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/data00/jiajie_jin/flashrag_indexes/wiki_dpr_100w/wiki_dump.jsonl
+  offsets: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte/corpus-row-offsets.npy
+  train_data_path: /home/a.anokhin/Judge/full-wiki/train_data
+  train_dataset:
+    _target_: envs.RetrievalNqHotpotqa
+    path: ${envs.train_data_path}/raw
+    split: train
+    seed: ${seed}
+  train_weights: ${envs.train_data_path}/weights/a1.jsonl
+  eval_dataset:
+    _target_: envs.RetrievalNqHotpotqa
+    path: ${envs.train_data_path}/raw
+    split: train
+    ids_file: ${envs.train_data_path}/holdout.json
+    length: ${eval_episodes}
+    seed: ${seed}
+feedback:
+  type: llm
+  feedback_dict:
+    llm: ${feedback.llm_answer}
+    occ: ${feedback.occ_status}
+  llm_answer:
+    _target_: rl.feedback.LlmAnswer
+    model: ${oc.env:VLLM_MODEL,Qwen3-4B}
+    base_url: ${oc.env:VLLM_BASE_URL,http://localhost:9000/v1}
+    api_key: ${oc.env:VLLM_API_KEY,'eds43det1'}
+    max_tokens: 1000
+    thinking: false
+    task: ${envs.task}
+    judge_max_tokens: 100
+  occ_status:
+    _target_: rl.feedback.OccStatus
+    llm_path: ../Qwen/OCC-RAG-1.7B
+    gpu_util: 0.5
+    max_tokens: 2000
+logger:
+  log_dir: runs/Aug08_20-39-40_rawmix8b
+  tensorboard:
+    _target_: torch.utils.tensorboard.SummaryWriter
+    comment: _rawmix8b
+    log_dir: runs/Aug08_20-39-40_rawmix8b/tb_logs/
+seed: 42
+device: cuda:0
+steps_count: 30000
+batch_size: 24
+accumulate_grads: 4
+eval_interval: 500
+eval_episodes: 2000
+envs_parallel: 16
+max_action_length: 256
+max_action_length_in_memory: 256
+train_action_embed: false
+learning_start: 0
+manifest:
+  reward_model: Qwen3-8B
+  reward_base_url: http://127.0.0.1:8012/v1
+  cuda_visible_devices: '1'
+  device: cuda:0
+  started_utc: '2026-08-08T20:39:40.254156Z'

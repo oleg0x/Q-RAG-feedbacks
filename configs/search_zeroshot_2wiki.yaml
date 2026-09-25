@@ -1,0 +1,43 @@
+# Стартовая точка линии A на 2WikiMultiHopQA: стоковая GTE-башня без чекпоинта.
+#
+# Без этой строки цифра обученной башни на 2Wiki не утверждает ничего: в
+# реестре нет ни одного рана на этом датасете, сравнивать не с чем. Ран
+# отличается от search_best_2wiki.yaml ровно отсутствием checkpoint, поэтому
+# разница двух строк — это вклад обучения и ничего больше.
+#
+# Потолок покрытия корпуса здесь 51.05% против 81.67% у HotpotQA
+# (runs/shared/2wiki_dev_title_coverage.json): половина gold-статей 2Wiki в
+# Wiki-18 просто отсутствует. Абсолютный EM поэтому будет низким у обеих
+# строк, и читать его нужно как долю потолка, а не как число рядом с HotpotQA.
+label: Прямой поиск, zero-shot GTE, 6 шагов, N=2
+slug: search-zeroshot-2wiki
+dataset: 2wiki_dev
+
+order: 47
+hypothesis: >-
+  Итеративный прямой поиск стоковой GTE-башней задаёт стартовую точку на
+  2Wiki. Ожидание — заметно ниже HotpotQA по абсолютному EM из-за вдвое
+  меньшего покрытия корпуса, но сопоставимо по доле потолка.
+
+retrieve:
+  kind: search
+  index_dir: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte
+  qrag_repo: /home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki
+  input: /home/a.anokhin/Judge/datasets/data_sources/2WikiMultiHopQA/data_ids_april7/dev.json
+  cuda_visible_devices: "6"
+  device: cuda:0
+  model_dtype: float32
+  batch_size: 64
+  top_k: 100
+  steps: 6
+  max_chunks_per_title: 2
+  log_candidates: full
+  auto_prepare: false
+
+judge:
+  script: /home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py
+  base_url: http://127.0.0.1:8010/v1
+  answer_model: Qwen3-4B
+  max_tokens: 1000
+  judge_max_tokens: 100
+  shards: 32

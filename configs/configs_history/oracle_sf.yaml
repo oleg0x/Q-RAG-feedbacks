@@ -1,0 +1,29 @@
+# Потолок ридера: gold-предложения вместо ретривала.
+#
+# Источник контекста — distractor-файл, а не fullwiki. Поле `context` в
+# hotpot_dev_fullwiki_v1.json содержит не gold-абзацы, а top-10 исходного
+# ретривера HotpotQA: у 5 316 из 7 405 примеров там нет ни одного gold-титула.
+# Подробности — docs/pipeline.md §4b.
+#
+# Oracle измеряет идеальный ретривал по HotpotQA, а не по Wiki-18, поэтому
+# «доля потолка» к нему неприменима.
+label: oracle (gold sentences)
+slug: oracle-sf
+
+# Позиция строки в таблице RESULTS.md.
+order: 80
+hypothesis: Потолок ридера при идеальном ретривале по HotpotQA.
+
+retrieve:
+  kind: variant
+  context: oracle
+  source_run: 2026-07-28-gte-only-steps6
+  oracle_source: /home/a.anokhin/Judge/datasets/data_sources/hotpotqa/hotpot_dev_distractor_v1.json
+
+judge:
+  script: /home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py
+  base_url: http://127.0.0.1:8010/v1
+  answer_model: Qwen3-4B
+  max_tokens: 1000
+  judge_max_tokens: 100
+  shards: 32

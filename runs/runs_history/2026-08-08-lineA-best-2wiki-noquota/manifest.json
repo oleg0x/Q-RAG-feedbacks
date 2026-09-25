@@ -1,0 +1,209 @@
+{
+  "code": {
+    "git_commit": "d3a5d639214d7da14b1869c1e20aba8b755b544c",
+    "git_dirty": true,
+    "git_dirty_files": [
+      "runs_index.py"
+    ],
+    "scripts": {
+      "build_eval_variants.py": "5c71e40dddaa3e3552e1236140e0d845b439c6a68cf382c51e439cb49570d1a0",
+      "build_index_wiki_gte.py": "3325f876bcc8eccdd3d1091c4069627567df213e20038d74fa49fff8bddf17df",
+      "build_index_wiki_qrag.py": "a3500fa16ca0d25aa5934e5041907ab0ce9a46fe1e62fe696353d6d3a52cec53",
+      "candidate_pool.py": "afd6f2731194463aa1903ffc32e797b4abfcfdb77bf6f93c0047c2b0d1567e69",
+      "exp.py": "90f4f45fd98b8d7f8701bbc09ae855382494b7015ab726faf25f7490b5fd8d12",
+      "fullwiki_qrag.py": "a4f3e830af975697a010ce10db16a64258ead5c3432230906c196c01ae1fbc6f",
+      "report_phase0.py": "37cce35bb1037923409152e14fb30132cf2234194e1896cebaed97271226fa7e"
+    }
+  },
+  "config": {
+    "config_file": "search_best_2wiki_noquota.yaml",
+    "dataset": "2wiki_dev",
+    "hypothesis": "Без квоты обученная башня теряет в answer-метриках: телеметрия обучения показывает, что к концу рана глобальный аргмакс запроса замаскирован в 54.6% шагов, то есть политика всё сильнее хочет взять запрещённое, и маска несёт нагрузку, а не страхует. Если так, снятие квоты схлопнет эпизод в меньшее число статей и уронит title recall сильнее, чем поднимет EM | попали.",
+    "judge": {
+      "answer_model": "Qwen3-4B",
+      "base_url": "http://127.0.0.1:8010/v1",
+      "judge_max_tokens": 100,
+      "max_tokens": 1000,
+      "script": "/home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py",
+      "shards": 32
+    },
+    "label": "Прямой поиск, обученная башня, 6 шагов, без квоты",
+    "order": 48.2,
+    "retrieve": {
+      "auto_prepare": false,
+      "batch_size": 64,
+      "checkpoint": "/home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki/runs/Aug03_12-44-38_lineA_main/model_best.pt",
+      "cuda_visible_devices": "0",
+      "device": "cuda:0",
+      "index_dir": "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte",
+      "input": "/home/a.anokhin/Judge/datasets/data_sources/2WikiMultiHopQA/data_ids_april7/dev.json",
+      "kind": "search",
+      "log_candidates": "none",
+      "max_chunks_per_title": 6,
+      "model_dtype": "float32",
+      "qrag_repo": "/home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki",
+      "state_source": "critic",
+      "steps": 6,
+      "top_k": 100
+    },
+    "slug": "lineA-best-2wiki-noquota"
+  },
+  "created_utc": "2026-08-08T12:03:15.424944+00:00",
+  "env": {
+    "cuda_visible_devices": null,
+    "executable": "/home/a.anokhin/venvs/gpu/bin/python",
+    "faiss": null,
+    "gpu": [
+      "0, NVIDIA H200, 143771 MiB",
+      "1, NVIDIA H200, 143771 MiB",
+      "2, NVIDIA H200, 143771 MiB",
+      "3, NVIDIA H200, 143771 MiB",
+      "4, NVIDIA H200, 143771 MiB",
+      "5, NVIDIA H200, 143771 MiB",
+      "6, NVIDIA H200, 143771 MiB",
+      "7, NVIDIA H200, 143771 MiB"
+    ],
+    "numpy": "2.2.6",
+    "python": "3.11.14",
+    "sentence-transformers": "5.2.3",
+    "torch": "2.10.0",
+    "transformers": "4.57.6"
+  },
+  "finished_utc": "2026-08-08T12:21:10.818352+00:00",
+  "hypothesis": "Без квоты обученная башня теряет в answer-метриках: телеметрия обучения показывает, что к концу рана глобальный аргмакс запроса замаскирован в 54.6% шагов, то есть политика всё сильнее хочет взять запрещённое, и маска несёт нагрузку, а не страхует. Если так, снятие квоты схлопнет эпизод в меньшее число статей и уронит title recall сильнее, чем поднимет EM | попали.",
+  "inputs": {
+    "action_artifact": null,
+    "checkpoint": {
+      "path": "/home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki/runs/Aug03_12-44-38_lineA_main/model_best.pt",
+      "sha256": "c8b2212d4b1e04449623a35acabe2ea8abc06d09acc22b6a87e29a2ea5c9db36",
+      "size_bytes": 7333936023
+    },
+    "corpus": {
+      "contents_field": "contents",
+      "faiss_id_mapping": "zero-based JSONL row number",
+      "require_id": true,
+      "rows": 21015324,
+      "sha256": "43d7d3f58d01d711d95b00b70584211eea639fa46802905a4b7e11cf0617752d",
+      "size_bytes": 14393573105,
+      "source_path": "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/data00/jiajie_jin/flashrag_indexes/wiki_dpr_100w/wiki_dump.jsonl",
+      "tar_member": null,
+      "validate_id_matches_row": true
+    },
+    "dataset": {
+      "path": "/home/a.anokhin/Judge/datasets/data_sources/2WikiMultiHopQA/data_ids_april7/dev.json",
+      "sha256": "79f77ae104088ea8e25b1a65dbece768d45771194663bc5660ec9a98070dadf5",
+      "size_bytes": 57614142
+    },
+    "encoder": {
+      "dimension": 768,
+      "max_length": 256,
+      "model": "Alibaba-NLP/gte-multilingual-base",
+      "resolved_revision": "9bbca17d9273fd0d03d5725c7a4b0f6b45142062"
+    },
+    "index_dir": "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte"
+  },
+  "metrics": {
+    "chunks_max": 6,
+    "chunks_min": 6,
+    "em": 0.3056615776081425,
+    "em_given_hit": 0.4373528642427413,
+    "em_given_miss": 0.24814349365931682,
+    "empty_predictions": 0,
+    "f1": 0.3754408953325177,
+    "hit_share": 0.30399173027989823,
+    "judge": 0.4157919847328244,
+    "samples": 12576,
+    "share_of_ceiling": 0.5954828660436137,
+    "title_em": 0.30399173027989823,
+    "title_em_exact": 0.2654262086513995,
+    "title_recall": 0.4951097328244275
+  },
+  "run_id": "2026-08-08-lineA-best-2wiki-noquota",
+  "schema_version": 1,
+  "stages": [
+    {
+      "argv": [
+        "/home/a.anokhin/venvs/gpu/bin/python",
+        "fullwiki_qrag.py",
+        "search",
+        "--index-dir",
+        "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte",
+        "--qrag-repo",
+        "/home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki",
+        "--device",
+        "cuda:0",
+        "--model-dtype",
+        "float32",
+        "--input",
+        "/home/a.anokhin/Judge/datasets/data_sources/2WikiMultiHopQA/data_ids_april7/dev.json",
+        "--output",
+        "/home/a.anokhin/Judge/full-wiki/runs/2026-08-08-lineA-best-2wiki-noquota/retrieval.jsonl",
+        "--batch-size",
+        "64",
+        "--top-k",
+        "100",
+        "--steps",
+        "6",
+        "--max-chunks-per-title",
+        "6",
+        "--log-candidates",
+        "none",
+        "--checkpoint",
+        "/home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki/runs/Aug03_12-44-38_lineA_main/model_best.pt",
+        "--state-source",
+        "critic",
+        "--no-auto-prepare"
+      ],
+      "env": {
+        "CUDA_VISIBLE_DEVICES": "0",
+        "HF_HUB_OFFLINE": "1",
+        "TRANSFORMERS_OFFLINE": "1"
+      },
+      "exit_code": 0,
+      "name": "retrieve",
+      "output": "retrieval.jsonl",
+      "records": 12576,
+      "seconds": 583.4,
+      "sha256": "ba4ad5fa8e77640f1d2666d4e1a3ccf0f1937778291f454988389063be394ec3",
+      "size_bytes": 70985363
+    },
+    {
+      "argv": [
+        "/home/a.anokhin/venvs/gpu/bin/python",
+        "/home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py",
+        "--retriever-logfile",
+        "<shard>.jsonl",
+        "--output-file",
+        "<shard>.json",
+        "--base-url",
+        "http://127.0.0.1:8010/v1",
+        "--answer-model",
+        "Qwen3-4B",
+        "--max-samples",
+        "100000",
+        "--max-tokens",
+        "1000",
+        "--judge-max-tokens",
+        "100"
+      ],
+      "exit_code": 0,
+      "name": "judge",
+      "output": "answer_judge.json",
+      "records": 12576,
+      "seconds": 478.5,
+      "sha256": "9f044151eea379ebef9448462321849d6f456cda1503e49caaf534f4aeb8dee4",
+      "shards": 32,
+      "size_bytes": 72013263
+    },
+    {
+      "argv": null,
+      "command": "runlib.score_judge_file → metrics.json",
+      "dataset": "2wiki_dev",
+      "exit_code": 0,
+      "name": "score",
+      "output": "metrics.json",
+      "seconds": 1.7
+    }
+  ],
+  "status": "ok"
+}

@@ -1,0 +1,51 @@
+# Q-RAG-реранкинг поверх top-100 GTE, бюджет два чанка.
+#
+# Воспроизводит канонический ран 2026-07-28-qrag-fixed-steps2. Копируйте этот
+# файл как основу для новых Q-RAG-экспериментов: менять обычно нужно steps,
+# index_dir (другой чекпоинт) и hypothesis.
+label: "Q-RAG, 2 шага"
+slug: qrag-fixed-steps2
+
+# Позиция строки в таблице RESULTS.md.
+order: 50
+hypothesis: >-
+  Обученный Q-RAG-реранкер поверх top-100 GTE поднимает answer-метрики
+  относительно голого first-stage.
+
+retrieve:
+  kind: qrag
+  index_dir: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-qrag-jul21-best-raw
+  candidate_index_dir: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte
+  candidate_backend: torch-cuda
+  qrag_repo: /home/a.anokhin/Judge/Q-RAG-feedback
+  input: /home/a.anokhin/Judge/datasets/data_sources/hotpotqa/hotpot_dev_fullwiki_v1.json
+
+  # Физическая GPU выбирается через CUDA_VISIBLE_DEVICES, внутри процесса она
+  # всегда cuda:0. Перед запуском проверьте свободную память: nvidia-smi.
+  cuda_visible_devices: "1"
+  device: cuda:0
+
+  model_dtype: float32
+  state_source: critic
+  batch_size: 64
+  top_k: 100
+  steps: 2
+  mode: fixed
+  reranker: qrag
+
+  # full воспроизводит опубликованные раны побайтово, но раздувает файлы:
+  # answer_judge копирует все поля входа, и steps=2 даёт сотни МБ. Для новых
+  # экспериментов, где дамп кандидатов не нужен, ставьте none.
+  log_candidates: full
+
+  dedupe_titles: true
+  trust_remote_code: true
+  auto_prepare: false
+
+judge:
+  script: /home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py
+  base_url: http://127.0.0.1:8010/v1
+  answer_model: Qwen3-4B
+  max_tokens: 1000
+  judge_max_tokens: 100
+  shards: 32

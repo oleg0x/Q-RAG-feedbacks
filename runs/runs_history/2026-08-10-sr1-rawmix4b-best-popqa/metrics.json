@@ -1,0 +1,20 @@
+{
+  "chunks_max": 6,
+  "chunks_min": 6,
+  "em": 0.3304829326417607,
+  "em_alias": 0.38992079624307846,
+  "em_given_hit": null,
+  "em_given_miss": null,
+  "empty_predictions": 0,
+  "f1": 0.4000896732761499,
+  "f1_alias": 0.4457454609149805,
+  "hit_share": null,
+  "judge": 0.4752225415294035,
+  "judge_imputed_share": 0.38992079624307846,
+  "samples": 14267,
+  "share_of_ceiling": null,
+  "title_em": null,
+  "title_em_exact": null,
+  "title_recall": null,
+  "with_aliases": 10191
+}

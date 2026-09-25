@@ -1,0 +1,438 @@
+{
+  "code": {
+    "git_commit": "efdbe89f1484eee06f5500f8a0cc6d342eecb4fe",
+    "git_dirty": true,
+    "git_dirty_files": [
+      "Q-RAG_for_full-wiki/answer_judge_llms.py",
+      "Q-RAG_for_full-wiki/envs/__init__.py",
+      "Q-RAG_for_full-wiki/envs/candidate_dataset_adapter.py",
+      "Q-RAG_for_full-wiki/envs/chunker.py",
+      "Q-RAG_for_full-wiki/envs/combined_dataset.py",
+      "Q-RAG_for_full-wiki/envs/dataloaders/__init__.py",
+      "Q-RAG_for_full-wiki/envs/dataloaders/babilong/__init__.py",
+      "Q-RAG_for_full-wiki/envs/dataloaders/babilong/babilong_fix.py",
+      "Q-RAG_for_full-wiki/envs/dataloaders/babilong/babilong_utils.py",
+      "Q-RAG_for_full-wiki/envs/dataloaders/babilong/retrieval_babilong.py",
+      "Q-RAG_for_full-wiki/envs/dataloaders/babilong/retrieval_env.py",
+      "Q-RAG_for_full-wiki/envs/dataloaders/base.py",
+      "Q-RAG_for_full-wiki/envs/dataloaders/competition_math.py",
+      "Q-RAG_for_full-wiki/envs/dataloaders/globalset.py",
+      "Q-RAG_for_full-wiki/envs/dataloaders/gsm8k.py",
+      "Q-RAG_for_full-wiki/envs/dataloaders/hellaswag.py",
+      "Q-RAG_for_full-wiki/envs/dataloaders/hotpotqa.py",
+      "Q-RAG_for_full-wiki/envs/dataloaders/longbench.py",
+      "Q-RAG_for_full-wiki/envs/dataloaders/mmlupro.py",
+      "Q-RAG_for_full-wiki/envs/dataloaders/musique.py",
+      "Q-RAG_for_full-wiki/envs/dataloaders/niah.py",
+      "Q-RAG_for_full-wiki/envs/dataloaders/nq_hotpotqa.py",
+      "Q-RAG_for_full-wiki/envs/dataloaders/ruler_qa.py",
+      "Q-RAG_for_full-wiki/envs/dataloaders/twowikimultihopqa.py",
+      "Q-RAG_for_full-wiki/envs/dataloaders/utils.py",
+      "Q-RAG_for_full-wiki/envs/dataloaders/xlsum.py",
+      "Q-RAG_for_full-wiki/envs/parallel_env.py",
+      "Q-RAG_for_full-wiki/envs/qa_dataset_adapter.py",
+      "Q-RAG_for_full-wiki/envs/qa_env.py",
+      "Q-RAG_for_full-wiki/envs/text_env.py",
+      "Q-RAG_for_full-wiki/envs/utils.py",
+      "Q-RAG_for_full-wiki/envs/words_counter_env.py",
+      "Q-RAG_for_full-wiki/eval_llm_math.py",
+      "Q-RAG_for_full-wiki/eval_llm_openqa.py",
+      "Q-RAG_for_full-wiki/eval_llm_synthetics.py",
+      "Q-RAG_for_full-wiki/eval_q-icl.py",
+      "Q-RAG_for_full-wiki/eval_retriever.py",
+      "Q-RAG_for_full-wiki/eval_search_r1.py",
+      "Q-RAG_for_full-wiki/gig_pipeline/combine_candidate_train_jsonl.py",
+      "Q-RAG_for_full-wiki/gig_pipeline/compute_beta.py",
+      "Q-RAG_for_full-wiki/gig_pipeline/filter_candidate_train_by_success_ids.py",
+      "Q-RAG_for_full-wiki/gig_pipeline/filter_success_rate_results.py",
+      "Q-RAG_for_full-wiki/gig_pipeline/generate_candidates.py",
+      "Q-RAG_for_full-wiki/gig_pipeline/gig_common.py",
+      "Q-RAG_for_full-wiki/gig_pipeline/judge_candidates.py",
+      "Q-RAG_for_full-wiki/gig_pipeline/llm_as_judge_eval.py",
+      "Q-RAG_for_full-wiki/gig_pipeline/make_2wiki_oracle_eval.py",
+      "Q-RAG_for_full-wiki/gig_pipeline/prepare_dataset.py",
+      "Q-RAG_for_full-wiki/gig_pipeline/run_success_rate_experiment.py",
+      "Q-RAG_for_full-wiki/prompts_and_metrics/__init__.py",
+      "Q-RAG_for_full-wiki/prompts_and_metrics/answer_metric.py",
+      "Q-RAG_for_full-wiki/prompts_and_metrics/babilong.py",
+      "Q-RAG_for_full-wiki/prompts_and_metrics/chunk_filtering.py",
+      "Q-RAG_for_full-wiki/prompts_and_metrics/general_qa.py",
+      "Q-RAG_for_full-wiki/prompts_and_metrics/prompts.py",
+      "Q-RAG_for_full-wiki/rl/__init__.py",
+      "Q-RAG_for_full-wiki/rl/agents/agent.py",
+      "Q-RAG_for_full-wiki/rl/agents/dqn.py",
+      "Q-RAG_for_full-wiki/rl/agents/pqn.py",
+      "Q-RAG_for_full-wiki/rl/agents/sacd.py",
+      "Q-RAG_for_full-wiki/rl/agents/sarsa.py",
+      "Q-RAG_for_full-wiki/rl/bert_predictor.py",
+      "Q-RAG_for_full-wiki/rl/feedback/__init__.py",
+      "Q-RAG_for_full-wiki/rl/feedback/candidate_beta_feedback.py",
+      "Q-RAG_for_full-wiki/rl/feedback/candidate_beta_per_step_feedback.py",
+      "Q-RAG_for_full-wiki/rl/feedback/feedback.py",
+      "Q-RAG_for_full-wiki/rl/feedback/gold_shift_feedback.py",
+      "Q-RAG_for_full-wiki/rl/feedback/gold_shift_feedback_math.py",
+      "Q-RAG_for_full-wiki/rl/feedback/llm_answer.py",
+      "Q-RAG_for_full-wiki/rl/feedback/llm_feedback.py",
+      "Q-RAG_for_full-wiki/rl/feedback/occ_status.py",
+      "Q-RAG_for_full-wiki/rl/langchain_utils.py",
+      "Q-RAG_for_full-wiki/rl/optim.py",
+      "Q-RAG_for_full-wiki/rl/q_module.py",
+      "Q-RAG_for_full-wiki/rl/text_env_bk.py",
+      "Q-RAG_for_full-wiki/scripts/compose_configs.py",
+      "Q-RAG_for_full-wiki/tests/conftest.py",
+      "Q-RAG_for_full-wiki/tests/test_candidate_feedback.py",
+      "Q-RAG_for_full-wiki/tests/test_gold_shift.py",
+      "Q-RAG_for_full-wiki/tests/test_hydra_configs.py",
+      "Q-RAG_for_full-wiki/tests/test_math_utils.py",
+      "Q-RAG_for_full-wiki/tests/test_prompt_consistency.py",
+      "Q-RAG_for_full-wiki/tests/test_qicl_datasets.py",
+      "Q-RAG_for_full-wiki/tests/test_train_clean_and_combined.py",
+      "Q-RAG_for_full-wiki/tests/test_vllm_clients.py",
+      "Q-RAG_for_full-wiki/train_q_rag.py",
+      "Q-RAG_for_full-wiki/utils/__init__.py",
+      "Q-RAG_for_full-wiki/utils/parse_boxed_answers.py",
+      "Q-RAG_for_full-wiki/utils/process_latex.py",
+      "Q-RAG_for_full-wiki/utils/prop_split.py",
+      "Q-RAG_for_full-wiki/vLLM_clients/__init__.py",
+      "Q-RAG_for_full-wiki/vLLM_clients/manual_integration.py",
+      "Q-RAG_for_full-wiki/vLLM_clients/sync_vllm_client.py",
+      "Q-RAG_for_full-wiki/vLLM_clients/vllm_client.py",
+      "Q-RAG_for_full-wiki/vLLM_clients/vllm_clients.py",
+      "Q-RAG_for_full-wiki/vLLM_clients/vllm_occ.py",
+      "candidate_pool.py",
+      "exp.py",
+      "fullwiki_qrag.py",
+      "runlib.py",
+      "test_candidate_pool.py",
+      "test_fullwiki_qrag.py"
+    ],
+    "scripts": {
+      "build_eval_variants.py": "5c71e40dddaa3e3552e1236140e0d845b439c6a68cf382c51e439cb49570d1a0",
+      "build_index_wiki_gte.py": "3325f876bcc8eccdd3d1091c4069627567df213e20038d74fa49fff8bddf17df",
+      "build_index_wiki_qrag.py": "a3500fa16ca0d25aa5934e5041907ab0ce9a46fe1e62fe696353d6d3a52cec53",
+      "candidate_pool.py": "d26cec853793b7a8829ffaeb53652d1f5ce5ced17ca9d75974f25a0f413beaa1",
+      "exp.py": "81633dbb36f73dbe7de7c963f7cd9ca31ea1ec3b123f5bb3684a08e0e88543ed",
+      "fullwiki_qrag.py": "4a48242d6c69146a61df72ae4ac2b6a003434fdb9f96d72fd67693bbd5daa5a4",
+      "report_phase0.py": "36b42d6cca08d8029de6268d6d4c47351b96913e216cd5e4c52a41f71de44af9"
+    }
+  },
+  "config": {
+    "config_file": "pool_oracle_titles_k4.yaml",
+    "hypothesis": "Идеальный выбор 4 чанков из top-100 GTE ограничивает сверху всё, что может дать реранкинг над этим пулом; разрыв с GTE top-4 — это цена ранжирования, а не покрытия.",
+    "judge": {
+      "answer_model": "Qwen3-4B",
+      "base_url": "http://127.0.0.1:8010/v1",
+      "judge_max_tokens": 100,
+      "max_tokens": 1000,
+      "script": "/home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py",
+      "shards": 32
+    },
+    "label": "oracle по титулам, 4 чанка",
+    "order": 74,
+    "retrieve": {
+      "index_dir": "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-qrag-jul21-best-raw",
+      "kind": "pool",
+      "source_run": "2026-08-02-gte-pool-diag",
+      "steps": 4
+    },
+    "slug": "pool-oracle-titles-k4"
+  },
+  "created_utc": "2026-08-02T00:41:55.037244+00:00",
+  "env": {
+    "cuda_visible_devices": null,
+    "executable": "/home/a.anokhin/venvs/gpu/bin/python",
+    "faiss": null,
+    "gpu": [
+      "0, NVIDIA H200, 143771 MiB",
+      "1, NVIDIA H200, 143771 MiB",
+      "2, NVIDIA H200, 143771 MiB",
+      "3, NVIDIA H200, 143771 MiB",
+      "4, NVIDIA H200, 143771 MiB",
+      "5, NVIDIA H200, 143771 MiB",
+      "6, NVIDIA H200, 143771 MiB",
+      "7, NVIDIA H200, 143771 MiB"
+    ],
+    "numpy": "2.2.6",
+    "python": "3.11.14",
+    "sentence-transformers": "5.2.3",
+    "torch": "2.10.0",
+    "transformers": "4.57.6"
+  },
+  "finished_utc": "2026-08-02T00:49:07.359847+00:00",
+  "hypothesis": "Идеальный выбор 4 чанков из top-100 GTE ограничивает сверху всё, что может дать реранкинг над этим пулом; разрыв с GTE top-4 — это цена ранжирования, а не покрытия.",
+  "inputs": {
+    "action_artifact": {
+      "created_at": "2026-07-27T23:20:29.150804+00:00",
+      "encoder": {
+        "configured_max_length": 256,
+        "dimension": 768,
+        "model_name": "Alibaba-NLP/gte-multilingual-base",
+        "normalization": "none",
+        "output_dimension": 768,
+        "output_scale": 0.1,
+        "pooling": "masked_mean",
+        "positions_processor": "none",
+        "requested_revision": "main",
+        "resolved_revision": "9bbca17d9273fd0d03d5725c7a4b0f6b45142062",
+        "unused_state_keys": [
+          "model.head.weight",
+          "model.head.bias"
+        ],
+        "wrapper": "EmbedderNone"
+      },
+      "run_config_file": "run-config.yaml",
+      "schema_version": 1,
+      "software": {
+        "hydra_core": "1.3.2",
+        "omegaconf": "2.3.0",
+        "python": "3.11.14",
+        "safetensors": "0.7.0",
+        "torch": "2.10.0",
+        "transformers": "4.57.6"
+      },
+      "source": {
+        "checkpoint": {
+          "mtime_ns": 1784727318643171251,
+          "path": "/home/a.anokhin/Judge/Q-RAG-feedback/runs/Jul21_19-44-36_QRAG_HotPotQA+2WikiMultihopQA/model_best.pt",
+          "sha256": "865fc68fb9aa023224aac122257cc0671dcf0cedd343683cdcf40f8c00b55fa3",
+          "size_bytes": 10999718469
+        },
+        "checkpoint_name": "best",
+        "checkpoint_section": "critic",
+        "config": {
+          "mtime_ns": 1784663076015404124,
+          "path": "/home/a.anokhin/Judge/Q-RAG-feedback/runs/Jul21_19-44-36_QRAG_HotPotQA+2WikiMultihopQA/config.yaml",
+          "sha256": "7e9c1792bdbc343451d6c9fcc36846e017da3086454e27c004b2d3d2734886d0",
+          "size_bytes": 7673
+        },
+        "qrag_implementation": {
+          "mtime_ns": 1784292288789738368,
+          "path": "/home/a.anokhin/Judge/Q-RAG-feedback/rl/bert_predictor.py",
+          "sha256": "7d82d0749afd0b57d1416dd6c39477f164fd710421f23faaadbd8a29e2f142c8",
+          "size_bytes": 10798
+        },
+        "run_dir": "/home/a.anokhin/Judge/Q-RAG-feedback/runs/Jul21_19-44-36_QRAG_HotPotQA+2WikiMultihopQA",
+        "state_dict_prefix": "action_embed."
+      },
+      "tokenizer_directory": "tokenizer",
+      "weights": {
+        "dtypes": [
+          "torch.float32",
+          "torch.int64"
+        ],
+        "elements": 305663618,
+        "file": "model.safetensors",
+        "floating_tensors": 138,
+        "keys": 140,
+        "mtime_ns": 1785194420427331097,
+        "path": "model.safetensors",
+        "sha256": "459169e68999ed97a46d901b49c621d23d942c671ac09a1f54780b867010d286",
+        "size_bytes": 1222671088,
+        "storage_bytes": 1222654480,
+        "tensors": 140
+      }
+    },
+    "corpus": {
+      "contents_field": "contents",
+      "faiss_id_mapping": "zero-based JSONL row number",
+      "require_id": true,
+      "rows": 21015324,
+      "sha256": "43d7d3f58d01d711d95b00b70584211eea639fa46802905a4b7e11cf0617752d",
+      "size_bytes": 14393573105,
+      "source_path": "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/data00/jiajie_jin/flashrag_indexes/wiki_dpr_100w/wiki_dump.jsonl",
+      "tar_member": null,
+      "text_format": "raw",
+      "validate_id_matches_row": true
+    },
+    "encoder": {
+      "dimension": 768,
+      "max_length": 256,
+      "model": "Alibaba-NLP/gte-multilingual-base",
+      "resolved_revision": "9bbca17d9273fd0d03d5725c7a4b0f6b45142062"
+    },
+    "index_dir": "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-qrag-jul21-best-raw",
+    "source_inputs": {
+      "action_artifact": {
+        "created_at": "2026-07-27T23:20:29.150804+00:00",
+        "encoder": {
+          "configured_max_length": 256,
+          "dimension": 768,
+          "model_name": "Alibaba-NLP/gte-multilingual-base",
+          "normalization": "none",
+          "output_dimension": 768,
+          "output_scale": 0.1,
+          "pooling": "masked_mean",
+          "positions_processor": "none",
+          "requested_revision": "main",
+          "resolved_revision": "9bbca17d9273fd0d03d5725c7a4b0f6b45142062",
+          "unused_state_keys": [
+            "model.head.weight",
+            "model.head.bias"
+          ],
+          "wrapper": "EmbedderNone"
+        },
+        "run_config_file": "run-config.yaml",
+        "schema_version": 1,
+        "software": {
+          "hydra_core": "1.3.2",
+          "omegaconf": "2.3.0",
+          "python": "3.11.14",
+          "safetensors": "0.7.0",
+          "torch": "2.10.0",
+          "transformers": "4.57.6"
+        },
+        "source": {
+          "checkpoint": {
+            "mtime_ns": 1784727318643171251,
+            "path": "/home/a.anokhin/Judge/Q-RAG-feedback/runs/Jul21_19-44-36_QRAG_HotPotQA+2WikiMultihopQA/model_best.pt",
+            "sha256": "865fc68fb9aa023224aac122257cc0671dcf0cedd343683cdcf40f8c00b55fa3",
+            "size_bytes": 10999718469
+          },
+          "checkpoint_name": "best",
+          "checkpoint_section": "critic",
+          "config": {
+            "mtime_ns": 1784663076015404124,
+            "path": "/home/a.anokhin/Judge/Q-RAG-feedback/runs/Jul21_19-44-36_QRAG_HotPotQA+2WikiMultihopQA/config.yaml",
+            "sha256": "7e9c1792bdbc343451d6c9fcc36846e017da3086454e27c004b2d3d2734886d0",
+            "size_bytes": 7673
+          },
+          "qrag_implementation": {
+            "mtime_ns": 1784292288789738368,
+            "path": "/home/a.anokhin/Judge/Q-RAG-feedback/rl/bert_predictor.py",
+            "sha256": "7d82d0749afd0b57d1416dd6c39477f164fd710421f23faaadbd8a29e2f142c8",
+            "size_bytes": 10798
+          },
+          "run_dir": "/home/a.anokhin/Judge/Q-RAG-feedback/runs/Jul21_19-44-36_QRAG_HotPotQA+2WikiMultihopQA",
+          "state_dict_prefix": "action_embed."
+        },
+        "tokenizer_directory": "tokenizer",
+        "weights": {
+          "dtypes": [
+            "torch.float32",
+            "torch.int64"
+          ],
+          "elements": 305663618,
+          "file": "model.safetensors",
+          "floating_tensors": 138,
+          "keys": 140,
+          "mtime_ns": 1785194420427331097,
+          "path": "model.safetensors",
+          "sha256": "459169e68999ed97a46d901b49c621d23d942c671ac09a1f54780b867010d286",
+          "size_bytes": 1222671088,
+          "storage_bytes": 1222654480,
+          "tensors": 140
+        }
+      },
+      "candidate_index": "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte",
+      "corpus": {
+        "contents_field": "contents",
+        "faiss_id_mapping": "zero-based JSONL row number",
+        "require_id": true,
+        "rows": 21015324,
+        "sha256": "43d7d3f58d01d711d95b00b70584211eea639fa46802905a4b7e11cf0617752d",
+        "size_bytes": 14393573105,
+        "source_path": "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/data00/jiajie_jin/flashrag_indexes/wiki_dpr_100w/wiki_dump.jsonl",
+        "tar_member": null,
+        "text_format": "raw",
+        "validate_id_matches_row": true
+      },
+      "dataset": {
+        "path": "/home/a.anokhin/Judge/datasets/data_sources/hotpotqa/hotpot_dev_fullwiki_v1.json",
+        "sha256": "2f1f3e594a3066a3084cc57950ca2713c24712adaad03af6ccce18d1846d5618",
+        "size_bytes": 47454698
+      },
+      "encoder": {
+        "dimension": 768,
+        "max_length": 256,
+        "model": "Alibaba-NLP/gte-multilingual-base",
+        "resolved_revision": "9bbca17d9273fd0d03d5725c7a4b0f6b45142062"
+      },
+      "index_dir": "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-qrag-jul21-best-raw"
+    },
+    "source_run": "2026-08-02-gte-pool-diag"
+  },
+  "metrics": {
+    "chunks_max": 4,
+    "chunks_min": 4,
+    "em": 0.3328831870357866,
+    "em_given_hit": 0.486586493987049,
+    "em_given_miss": 0.21311869293608843,
+    "empty_predictions": 0,
+    "f1": 0.4360540396434278,
+    "hit_share": 0.43794733288318705,
+    "judge": 0.45158676569885214,
+    "samples": 7405,
+    "share_of_ceiling": 0.5362103174603174,
+    "title_em": 0.43794733288318705,
+    "title_em_exact": 0.4110735989196489,
+    "title_recall": 0.6613099257258609
+  },
+  "resumed_utc": "2026-08-02T00:46:45.489746+00:00",
+  "run_id": "2026-08-02-pool-oracle-titles-k4",
+  "schema_version": 1,
+  "stages": [
+    {
+      "argv": [
+        "/home/a.anokhin/venvs/gpu/bin/python",
+        "candidate_pool.py",
+        "select",
+        "--input",
+        "/home/a.anokhin/Judge/full-wiki/runs/2026-08-02-gte-pool-diag/retrieval.jsonl",
+        "--index-dir",
+        "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-qrag-jul21-best-raw",
+        "--steps",
+        "4",
+        "--output",
+        "/home/a.anokhin/Judge/full-wiki/runs/2026-08-02-pool-oracle-titles-k4/retrieval.jsonl"
+      ],
+      "env": {
+        "HF_HUB_OFFLINE": "1",
+        "TRANSFORMERS_OFFLINE": "1"
+      },
+      "exit_code": 0,
+      "name": "retrieve",
+      "output": "retrieval.jsonl",
+      "records": 7405,
+      "seconds": 15.2,
+      "sha256": "498da53074913815a41d0ccb19ea183eed990d05d347d2fb1a8b46db78da96c6",
+      "size_bytes": 29305894
+    },
+    {
+      "argv": [
+        "/home/a.anokhin/venvs/gpu/bin/python",
+        "/home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py",
+        "--retriever-logfile",
+        "<shard>.jsonl",
+        "--output-file",
+        "<shard>.json",
+        "--base-url",
+        "http://127.0.0.1:8010/v1",
+        "--answer-model",
+        "Qwen3-4B",
+        "--max-samples",
+        "100000",
+        "--max-tokens",
+        "1000",
+        "--judge-max-tokens",
+        "100"
+      ],
+      "exit_code": 0,
+      "name": "judge",
+      "output": "answer_judge.json",
+      "records": 7405,
+      "seconds": 140.5,
+      "sha256": "b792fd8f0f5401d6aca106ce6868c86f073a53707aafb6f3aef72d8fa42b3185",
+      "shards": 32,
+      "size_bytes": 29899747
+    },
+    {
+      "argv": null,
+      "command": "runlib.score_judge_file → metrics.json",
+      "exit_code": 0,
+      "name": "score",
+      "output": "metrics.json",
+      "seconds": 0.7
+    }
+  ],
+  "status": "ok"
+}

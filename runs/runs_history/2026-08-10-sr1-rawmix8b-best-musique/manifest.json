@@ -1,0 +1,215 @@
+{
+  "code": {
+    "git_commit": "5abcda68a595455fd7c05e861fd306984451753a",
+    "git_dirty": false,
+    "git_dirty_files": [],
+    "scripts": {
+      "answer_judge.py": "6ecf2880dae14b61dcf6409caecf61a4e99cff353c7d387fc88b5a5e524a688e",
+      "build_eval_variants.py": "5c71e40dddaa3e3552e1236140e0d845b439c6a68cf382c51e439cb49570d1a0",
+      "build_index_wiki_gte.py": "3325f876bcc8eccdd3d1091c4069627567df213e20038d74fa49fff8bddf17df",
+      "build_index_wiki_qrag.py": "a3500fa16ca0d25aa5934e5041907ab0ce9a46fe1e62fe696353d6d3a52cec53",
+      "candidate_pool.py": "afd6f2731194463aa1903ffc32e797b4abfcfdb77bf6f93c0047c2b0d1567e69",
+      "exp.py": "b4c2cd5325894190cabe697ab33371d807656248117eee1a4ad1c7ca76c1d763",
+      "fullwiki_qrag.py": "a4f3e830af975697a010ce10db16a64258ead5c3432230906c196c01ae1fbc6f",
+      "report_phase0.py": "7888de3f0115b4401d1148238a0c4d21cc4d5ef4aaf66e7c278683bcbf0c5868"
+    }
+  },
+  "config": {
+    "config_file": "sr1_rawmix8b-best_musique.yaml",
+    "dataset": "sr1_musique",
+    "hypothesis": "Обучение на смеси с NQ переносит прирост за пределы holdout: на мультихопных датасетах строка обгоняет ветку HotpotQA+2Wiki, на однохопных — как минимум не проигрывает ей.",
+    "judge": {
+      "answer_model": "Qwen3-8B",
+      "base_url": "http://127.0.0.1:8012/v1",
+      "judge_max_tokens": 100,
+      "max_tokens": 1000,
+      "shards": 32
+    },
+    "label": "Сырая смесь NQ+HotpotQA, Qwen3-8B, пик (шаг ~14 000)",
+    "order": 119,
+    "retrieve": {
+      "auto_prepare": false,
+      "batch_size": 64,
+      "checkpoint": "/home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki/runs/Aug08_20-39-40_rawmix8b/model_best.pt",
+      "cuda_visible_devices": "1",
+      "device": "cuda:0",
+      "index_dir": "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte",
+      "input": "/home/a.anokhin/Judge/full-wiki/runs/shared/searchr1/musique.jsonl",
+      "kind": "search",
+      "log_candidates": "none",
+      "max_chunks_per_title": 2,
+      "model_dtype": "float32",
+      "qrag_repo": "/home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki",
+      "state_source": "critic",
+      "steps": 6,
+      "top_k": 100
+    },
+    "slug": "sr1-rawmix8b-best-musique"
+  },
+  "created_utc": "2026-08-10T19:54:06.881837+00:00",
+  "env": {
+    "cuda_visible_devices": null,
+    "executable": "/home/a.anokhin/venvs/gpu/bin/python",
+    "faiss": null,
+    "gpu": [
+      "0, NVIDIA H200, 143771 MiB",
+      "1, NVIDIA H200, 143771 MiB",
+      "2, NVIDIA H200, 143771 MiB",
+      "3, NVIDIA H200, 143771 MiB",
+      "4, NVIDIA H200, 143771 MiB",
+      "5, NVIDIA H200, 143771 MiB",
+      "6, NVIDIA H200, 143771 MiB",
+      "7, NVIDIA H200, 143771 MiB"
+    ],
+    "numpy": "2.2.6",
+    "python": "3.11.14",
+    "sentence-transformers": "5.2.3",
+    "torch": "2.10.0",
+    "transformers": "4.57.6"
+  },
+  "finished_utc": "2026-08-10T19:59:10.512093+00:00",
+  "hypothesis": "Обучение на смеси с NQ переносит прирост за пределы holdout: на мультихопных датасетах строка обгоняет ветку HotpotQA+2Wiki, на однохопных — как минимум не проигрывает ей.",
+  "inputs": {
+    "action_artifact": null,
+    "checkpoint": {
+      "path": "/home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki/runs/Aug08_20-39-40_rawmix8b/model_best.pt",
+      "sha256": "fd461e266898b76ba88686f160baa0b5abbb6205f431c7d3a7e8a21c9b3c4639",
+      "size_bytes": 7333936023
+    },
+    "corpus": {
+      "contents_field": "contents",
+      "faiss_id_mapping": "zero-based JSONL row number",
+      "require_id": true,
+      "rows": 21015324,
+      "sha256": "43d7d3f58d01d711d95b00b70584211eea639fa46802905a4b7e11cf0617752d",
+      "size_bytes": 14393573105,
+      "source_path": "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/data00/jiajie_jin/flashrag_indexes/wiki_dpr_100w/wiki_dump.jsonl",
+      "tar_member": null,
+      "validate_id_matches_row": true
+    },
+    "dataset": {
+      "path": "/home/a.anokhin/Judge/full-wiki/runs/shared/searchr1/musique.jsonl",
+      "sha256": "c3565d54d3c86adb5f54aec420db14998fb65297266793f1edb11954faaa851b",
+      "size_bytes": 556618
+    },
+    "encoder": {
+      "dimension": 768,
+      "max_length": 256,
+      "model": "Alibaba-NLP/gte-multilingual-base",
+      "resolved_revision": "9bbca17d9273fd0d03d5725c7a4b0f6b45142062"
+    },
+    "index_dir": "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte"
+  },
+  "metrics": {
+    "chunks_max": 6,
+    "chunks_min": 6,
+    "em": 0.10260653702937526,
+    "em_alias": 0.11832850641290857,
+    "em_given_hit": null,
+    "em_given_miss": null,
+    "empty_predictions": 0,
+    "f1": 0.18855901284909696,
+    "f1_alias": 0.2008303078055388,
+    "hit_share": null,
+    "judge": 0.18742242449317337,
+    "judge_imputed_share": 0.11832850641290857,
+    "samples": 2417,
+    "share_of_ceiling": null,
+    "title_em": null,
+    "title_em_exact": null,
+    "title_recall": null,
+    "with_aliases": 680
+  },
+  "run_id": "2026-08-10-sr1-rawmix8b-best-musique",
+  "schema_version": 1,
+  "stages": [
+    {
+      "argv": [
+        "/home/a.anokhin/venvs/gpu/bin/python",
+        "fullwiki_qrag.py",
+        "search",
+        "--index-dir",
+        "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte",
+        "--qrag-repo",
+        "/home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki",
+        "--device",
+        "cuda:0",
+        "--model-dtype",
+        "float32",
+        "--input",
+        "/home/a.anokhin/Judge/full-wiki/runs/shared/searchr1/musique.jsonl",
+        "--output",
+        "/home/a.anokhin/Judge/full-wiki/runs/2026-08-10-sr1-rawmix8b-best-musique/retrieval.jsonl",
+        "--batch-size",
+        "64",
+        "--top-k",
+        "100",
+        "--steps",
+        "6",
+        "--max-chunks-per-title",
+        "2",
+        "--log-candidates",
+        "none",
+        "--checkpoint",
+        "/home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki/runs/Aug08_20-39-40_rawmix8b/model_best.pt",
+        "--state-source",
+        "critic",
+        "--no-auto-prepare"
+      ],
+      "env": {
+        "CUDA_VISIBLE_DEVICES": "1",
+        "HF_HUB_OFFLINE": "1",
+        "TRANSFORMERS_OFFLINE": "1"
+      },
+      "exit_code": 0,
+      "name": "retrieve",
+      "output": "retrieval.jsonl",
+      "records": 2417,
+      "seconds": 181.1,
+      "sha256": "dafeef286509d0540f197a7ee8d95a2f44b1e9ffc9f6c0dfbd5b0ec0d4309fcc",
+      "size_bytes": 12044321
+    },
+    {
+      "argv": [
+        "/home/a.anokhin/venvs/gpu/bin/python",
+        "/home/a.anokhin/Judge/full-wiki/answer_judge.py",
+        "--retriever-logfile",
+        "<shard>.jsonl",
+        "--output-file",
+        "<shard>.json",
+        "--base-url",
+        "http://127.0.0.1:8012/v1",
+        "--answer-model",
+        "Qwen3-8B",
+        "--max-samples",
+        "100000",
+        "--max-tokens",
+        "1000",
+        "--judge-max-tokens",
+        "100",
+        "--contract",
+        "v2",
+        "--dataset",
+        "sr1_musique"
+      ],
+      "exit_code": 0,
+      "name": "judge",
+      "output": "answer_judge.json",
+      "records": 2417,
+      "seconds": 113.0,
+      "sha256": "2a0a7c44ba3c6d3ea3312c5f694d4325a4e6f7483efd644b580fce23b9b72a1f",
+      "shards": 32,
+      "size_bytes": 12635734
+    },
+    {
+      "argv": null,
+      "command": "runlib.score_judge_file → metrics.json",
+      "dataset": "sr1_musique",
+      "exit_code": 0,
+      "name": "score",
+      "output": "metrics.json",
+      "seconds": 0.5
+    }
+  ],
+  "status": "ok"
+}

@@ -1,0 +1,48 @@
+# HOTPOTQA из eval-таблицы Search-R1: башня ветки «сырая смесь», Qwen3-8B, последний (шаг 30 000).
+#
+# Ветка училась на NQ + HotpotQA (169 615 примеров), в отличие от
+# Aug03_12-44-38_lineA_main, учившегося на HotpotQA + 2Wiki. Строка читается
+# против sr1_hotpotqa_best (та ветка), sr1_hotpotqa_zeroshot (стоковая башня) и
+# sr1_hotpotqa_noctx (ридер без контекста) на тех же вопросах и том же бюджете.
+#
+# Ридер и судья — Qwen3-8B, то есть та же модель, которой считалась награда
+# при обучении этой башни. Ретривер и ридер учились вместе и меряются
+# вместе; со строками 2026-08-07 (ридер Qwen3-4B) эта половина таблицы
+# поэтому напрямую не сравнивается — сравнивается рука 4B.
+#
+# Контракт эвала v2 (умолчание с 2026-08-08). Сравнимы с 2026-08-07 колонки
+# em/f1/em_alias — они считаются одинаково; колонка judge под v2 равна награде
+# (максимум EM по вариантам и вердикта) и со старыми строками несравнима.
+label: Сырая смесь NQ+HotpotQA, Qwen3-8B, последний (шаг 30 000)
+slug: sr1-rawmix8b-last-hotpotqa
+dataset: sr1_hotpotqa
+
+order: 124
+hypothesis: >-
+  Обучение на смеси с NQ переносит прирост за пределы holdout: на мультихопных
+  датасетах строка обгоняет ветку HotpotQA+2Wiki, на однохопных — как минимум
+  не проигрывает ей.
+
+retrieve:
+  kind: search
+  index_dir: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte
+  qrag_repo: /home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki
+  checkpoint: /home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki/runs/Aug08_20-39-40_rawmix8b/model_last.pt
+  state_source: critic
+  input: /home/a.anokhin/Judge/full-wiki/runs/shared/searchr1/hotpotqa.jsonl
+  cuda_visible_devices: "1"
+  device: cuda:0
+  model_dtype: float32
+  batch_size: 64
+  top_k: 100
+  steps: 6
+  max_chunks_per_title: 2
+  log_candidates: none
+  auto_prepare: false
+
+judge:
+  base_url: http://127.0.0.1:8012/v1
+  answer_model: Qwen3-8B
+  max_tokens: 1000
+  judge_max_tokens: 100
+  shards: 32

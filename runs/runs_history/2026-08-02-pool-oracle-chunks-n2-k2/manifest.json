@@ -1,0 +1,355 @@
+{
+  "code": {
+    "git_commit": "d54090975fbf52965b3f66627202910b9b2e0a81",
+    "git_dirty": true,
+    "git_dirty_files": [
+      "candidate_pool.py",
+      "exp.py",
+      "fullwiki_qrag.py",
+      "runs_index.py",
+      "test_candidate_pool.py",
+      "test_fullwiki_qrag.py"
+    ],
+    "scripts": {
+      "build_eval_variants.py": "5c71e40dddaa3e3552e1236140e0d845b439c6a68cf382c51e439cb49570d1a0",
+      "build_index_wiki_gte.py": "3325f876bcc8eccdd3d1091c4069627567df213e20038d74fa49fff8bddf17df",
+      "build_index_wiki_qrag.py": "a3500fa16ca0d25aa5934e5041907ab0ce9a46fe1e62fe696353d6d3a52cec53",
+      "candidate_pool.py": "afd6f2731194463aa1903ffc32e797b4abfcfdb77bf6f93c0047c2b0d1567e69",
+      "exp.py": "521ffe99b461fc61efdba2e706949ac88571c1a8f365d99a9b492c3cd34435f5",
+      "fullwiki_qrag.py": "1ce007ccb235d78ef2bf89c395ec2f22119be020fe281c39a969d96e4cf13936",
+      "report_phase0.py": "36b42d6cca08d8029de6268d6d4c47351b96913e216cd5e4c52a41f71de44af9"
+    }
+  },
+  "config": {
+    "config_file": "pool_oracle_chunks_n2_k2.yaml",
+    "hypothesis": "Если реранкеру разрешено брать два чанка одной статьи, его верхняя граница выше: gold-предложения, разорванные границей 100 слов, становятся достижимыми целиком.",
+    "judge": {
+      "answer_model": "Qwen3-4B",
+      "base_url": "http://127.0.0.1:8010/v1",
+      "judge_max_tokens": 100,
+      "max_tokens": 1000,
+      "script": "/home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py",
+      "shards": 32
+    },
+    "label": "oracle по чанкам, 2 чанка, 2 на титул",
+    "order": 78,
+    "retrieve": {
+      "gold_source": "/home/a.anokhin/Judge/datasets/data_sources/hotpotqa/hotpot_dev_distractor_v1.json",
+      "index_dir": "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-qrag-jul21-best-raw",
+      "kind": "pool",
+      "max_per_title": 2,
+      "prefer": "gold-sentence",
+      "source_run": "2026-08-02-gte-pool-diag",
+      "steps": 2
+    },
+    "slug": "pool-oracle-chunks-n2-k2"
+  },
+  "created_utc": "2026-08-02T10:19:16.840279+00:00",
+  "env": {
+    "cuda_visible_devices": null,
+    "executable": "/home/a.anokhin/venvs/gpu/bin/python",
+    "faiss": null,
+    "gpu": [
+      "0, NVIDIA H200, 143771 MiB",
+      "1, NVIDIA H200, 143771 MiB",
+      "2, NVIDIA H200, 143771 MiB",
+      "3, NVIDIA H200, 143771 MiB",
+      "4, NVIDIA H200, 143771 MiB",
+      "5, NVIDIA H200, 143771 MiB",
+      "6, NVIDIA H200, 143771 MiB",
+      "7, NVIDIA H200, 143771 MiB"
+    ],
+    "numpy": "2.2.6",
+    "python": "3.11.14",
+    "sentence-transformers": "5.2.3",
+    "torch": "2.10.0",
+    "transformers": "4.57.6"
+  },
+  "finished_utc": "2026-08-02T10:21:29.238815+00:00",
+  "hypothesis": "Если реранкеру разрешено брать два чанка одной статьи, его верхняя граница выше: gold-предложения, разорванные границей 100 слов, становятся достижимыми целиком.",
+  "inputs": {
+    "action_artifact": {
+      "created_at": "2026-07-27T23:20:29.150804+00:00",
+      "encoder": {
+        "configured_max_length": 256,
+        "dimension": 768,
+        "model_name": "Alibaba-NLP/gte-multilingual-base",
+        "normalization": "none",
+        "output_dimension": 768,
+        "output_scale": 0.1,
+        "pooling": "masked_mean",
+        "positions_processor": "none",
+        "requested_revision": "main",
+        "resolved_revision": "9bbca17d9273fd0d03d5725c7a4b0f6b45142062",
+        "unused_state_keys": [
+          "model.head.weight",
+          "model.head.bias"
+        ],
+        "wrapper": "EmbedderNone"
+      },
+      "run_config_file": "run-config.yaml",
+      "schema_version": 1,
+      "software": {
+        "hydra_core": "1.3.2",
+        "omegaconf": "2.3.0",
+        "python": "3.11.14",
+        "safetensors": "0.7.0",
+        "torch": "2.10.0",
+        "transformers": "4.57.6"
+      },
+      "source": {
+        "checkpoint": {
+          "mtime_ns": 1784727318643171251,
+          "path": "/home/a.anokhin/Judge/Q-RAG-feedback/runs/Jul21_19-44-36_QRAG_HotPotQA+2WikiMultihopQA/model_best.pt",
+          "sha256": "865fc68fb9aa023224aac122257cc0671dcf0cedd343683cdcf40f8c00b55fa3",
+          "size_bytes": 10999718469
+        },
+        "checkpoint_name": "best",
+        "checkpoint_section": "critic",
+        "config": {
+          "mtime_ns": 1784663076015404124,
+          "path": "/home/a.anokhin/Judge/Q-RAG-feedback/runs/Jul21_19-44-36_QRAG_HotPotQA+2WikiMultihopQA/config.yaml",
+          "sha256": "7e9c1792bdbc343451d6c9fcc36846e017da3086454e27c004b2d3d2734886d0",
+          "size_bytes": 7673
+        },
+        "qrag_implementation": {
+          "mtime_ns": 1784292288789738368,
+          "path": "/home/a.anokhin/Judge/Q-RAG-feedback/rl/bert_predictor.py",
+          "sha256": "7d82d0749afd0b57d1416dd6c39477f164fd710421f23faaadbd8a29e2f142c8",
+          "size_bytes": 10798
+        },
+        "run_dir": "/home/a.anokhin/Judge/Q-RAG-feedback/runs/Jul21_19-44-36_QRAG_HotPotQA+2WikiMultihopQA",
+        "state_dict_prefix": "action_embed."
+      },
+      "tokenizer_directory": "tokenizer",
+      "weights": {
+        "dtypes": [
+          "torch.float32",
+          "torch.int64"
+        ],
+        "elements": 305663618,
+        "file": "model.safetensors",
+        "floating_tensors": 138,
+        "keys": 140,
+        "mtime_ns": 1785194420427331097,
+        "path": "model.safetensors",
+        "sha256": "459169e68999ed97a46d901b49c621d23d942c671ac09a1f54780b867010d286",
+        "size_bytes": 1222671088,
+        "storage_bytes": 1222654480,
+        "tensors": 140
+      }
+    },
+    "corpus": {
+      "contents_field": "contents",
+      "faiss_id_mapping": "zero-based JSONL row number",
+      "require_id": true,
+      "rows": 21015324,
+      "sha256": "43d7d3f58d01d711d95b00b70584211eea639fa46802905a4b7e11cf0617752d",
+      "size_bytes": 14393573105,
+      "source_path": "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/data00/jiajie_jin/flashrag_indexes/wiki_dpr_100w/wiki_dump.jsonl",
+      "tar_member": null,
+      "text_format": "raw",
+      "validate_id_matches_row": true
+    },
+    "encoder": {
+      "dimension": 768,
+      "max_length": 256,
+      "model": "Alibaba-NLP/gte-multilingual-base",
+      "resolved_revision": "9bbca17d9273fd0d03d5725c7a4b0f6b45142062"
+    },
+    "gold_source": {
+      "path": "/home/a.anokhin/Judge/datasets/data_sources/hotpotqa/hotpot_dev_distractor_v1.json",
+      "sha256": "4e9ecb5c8d3b719f624d66b60f8d56bf227f03914f5f0753d6fa1b359d7104ea",
+      "size_bytes": 46320117
+    },
+    "index_dir": "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-qrag-jul21-best-raw",
+    "source_inputs": {
+      "action_artifact": {
+        "created_at": "2026-07-27T23:20:29.150804+00:00",
+        "encoder": {
+          "configured_max_length": 256,
+          "dimension": 768,
+          "model_name": "Alibaba-NLP/gte-multilingual-base",
+          "normalization": "none",
+          "output_dimension": 768,
+          "output_scale": 0.1,
+          "pooling": "masked_mean",
+          "positions_processor": "none",
+          "requested_revision": "main",
+          "resolved_revision": "9bbca17d9273fd0d03d5725c7a4b0f6b45142062",
+          "unused_state_keys": [
+            "model.head.weight",
+            "model.head.bias"
+          ],
+          "wrapper": "EmbedderNone"
+        },
+        "run_config_file": "run-config.yaml",
+        "schema_version": 1,
+        "software": {
+          "hydra_core": "1.3.2",
+          "omegaconf": "2.3.0",
+          "python": "3.11.14",
+          "safetensors": "0.7.0",
+          "torch": "2.10.0",
+          "transformers": "4.57.6"
+        },
+        "source": {
+          "checkpoint": {
+            "mtime_ns": 1784727318643171251,
+            "path": "/home/a.anokhin/Judge/Q-RAG-feedback/runs/Jul21_19-44-36_QRAG_HotPotQA+2WikiMultihopQA/model_best.pt",
+            "sha256": "865fc68fb9aa023224aac122257cc0671dcf0cedd343683cdcf40f8c00b55fa3",
+            "size_bytes": 10999718469
+          },
+          "checkpoint_name": "best",
+          "checkpoint_section": "critic",
+          "config": {
+            "mtime_ns": 1784663076015404124,
+            "path": "/home/a.anokhin/Judge/Q-RAG-feedback/runs/Jul21_19-44-36_QRAG_HotPotQA+2WikiMultihopQA/config.yaml",
+            "sha256": "7e9c1792bdbc343451d6c9fcc36846e017da3086454e27c004b2d3d2734886d0",
+            "size_bytes": 7673
+          },
+          "qrag_implementation": {
+            "mtime_ns": 1784292288789738368,
+            "path": "/home/a.anokhin/Judge/Q-RAG-feedback/rl/bert_predictor.py",
+            "sha256": "7d82d0749afd0b57d1416dd6c39477f164fd710421f23faaadbd8a29e2f142c8",
+            "size_bytes": 10798
+          },
+          "run_dir": "/home/a.anokhin/Judge/Q-RAG-feedback/runs/Jul21_19-44-36_QRAG_HotPotQA+2WikiMultihopQA",
+          "state_dict_prefix": "action_embed."
+        },
+        "tokenizer_directory": "tokenizer",
+        "weights": {
+          "dtypes": [
+            "torch.float32",
+            "torch.int64"
+          ],
+          "elements": 305663618,
+          "file": "model.safetensors",
+          "floating_tensors": 138,
+          "keys": 140,
+          "mtime_ns": 1785194420427331097,
+          "path": "model.safetensors",
+          "sha256": "459169e68999ed97a46d901b49c621d23d942c671ac09a1f54780b867010d286",
+          "size_bytes": 1222671088,
+          "storage_bytes": 1222654480,
+          "tensors": 140
+        }
+      },
+      "candidate_index": "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte",
+      "corpus": {
+        "contents_field": "contents",
+        "faiss_id_mapping": "zero-based JSONL row number",
+        "require_id": true,
+        "rows": 21015324,
+        "sha256": "43d7d3f58d01d711d95b00b70584211eea639fa46802905a4b7e11cf0617752d",
+        "size_bytes": 14393573105,
+        "source_path": "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/data00/jiajie_jin/flashrag_indexes/wiki_dpr_100w/wiki_dump.jsonl",
+        "tar_member": null,
+        "text_format": "raw",
+        "validate_id_matches_row": true
+      },
+      "dataset": {
+        "path": "/home/a.anokhin/Judge/datasets/data_sources/hotpotqa/hotpot_dev_fullwiki_v1.json",
+        "sha256": "2f1f3e594a3066a3084cc57950ca2713c24712adaad03af6ccce18d1846d5618",
+        "size_bytes": 47454698
+      },
+      "encoder": {
+        "dimension": 768,
+        "max_length": 256,
+        "model": "Alibaba-NLP/gte-multilingual-base",
+        "resolved_revision": "9bbca17d9273fd0d03d5725c7a4b0f6b45142062"
+      },
+      "index_dir": "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-qrag-jul21-best-raw"
+    },
+    "source_run": "2026-08-02-gte-pool-diag"
+  },
+  "metrics": {
+    "chunks_max": 2,
+    "chunks_min": 2,
+    "em": 0.3615124915597569,
+    "em_given_hit": 0.5245143385753932,
+    "em_given_miss": 0.23450264296011533,
+    "empty_predictions": 0,
+    "f1": 0.47068704556328594,
+    "hit_share": 0.43794733288318705,
+    "judge": 0.4883187035786631,
+    "samples": 7405,
+    "share_of_ceiling": 0.5362103174603174,
+    "title_em": 0.43794733288318705,
+    "title_em_exact": 0.4110735989196489,
+    "title_recall": 0.6613099257258609
+  },
+  "run_id": "2026-08-02-pool-oracle-chunks-n2-k2",
+  "schema_version": 1,
+  "stages": [
+    {
+      "argv": [
+        "/home/a.anokhin/venvs/gpu/bin/python",
+        "candidate_pool.py",
+        "select",
+        "--input",
+        "/home/a.anokhin/Judge/full-wiki/runs/2026-08-02-gte-pool-diag/retrieval.jsonl",
+        "--index-dir",
+        "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-qrag-jul21-best-raw",
+        "--steps",
+        "2",
+        "--output",
+        "/home/a.anokhin/Judge/full-wiki/runs/2026-08-02-pool-oracle-chunks-n2-k2/retrieval.jsonl",
+        "--prefer",
+        "gold-sentence",
+        "--gold-source",
+        "/home/a.anokhin/Judge/datasets/data_sources/hotpotqa/hotpot_dev_distractor_v1.json",
+        "--max-per-title",
+        "2"
+      ],
+      "env": {
+        "HF_HUB_OFFLINE": "1",
+        "TRANSFORMERS_OFFLINE": "1"
+      },
+      "exit_code": 0,
+      "name": "retrieve",
+      "output": "retrieval.jsonl",
+      "records": 7405,
+      "seconds": 17.2,
+      "sha256": "1187a812a70120b554e263b88df3309fe841c22eea85c74040de6c0898028aab",
+      "size_bytes": 18076962
+    },
+    {
+      "argv": [
+        "/home/a.anokhin/venvs/gpu/bin/python",
+        "/home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py",
+        "--retriever-logfile",
+        "<shard>.jsonl",
+        "--output-file",
+        "<shard>.json",
+        "--base-url",
+        "http://127.0.0.1:8010/v1",
+        "--answer-model",
+        "Qwen3-4B",
+        "--max-samples",
+        "100000",
+        "--max-tokens",
+        "1000",
+        "--judge-max-tokens",
+        "100"
+      ],
+      "exit_code": 0,
+      "name": "judge",
+      "output": "answer_judge.json",
+      "records": 7405,
+      "seconds": 114.2,
+      "sha256": "d64977bc628402fd622128b0fca137e3a7b65347f86e6788e468608cc0c403ab",
+      "shards": 32,
+      "size_bytes": 18675780
+    },
+    {
+      "argv": null,
+      "command": "runlib.score_judge_file → metrics.json",
+      "exit_code": 0,
+      "name": "score",
+      "output": "metrics.json",
+      "seconds": 0.4
+    }
+  ],
+  "status": "ok"
+}

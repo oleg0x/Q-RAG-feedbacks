@@ -1,0 +1,29 @@
+# GTE top-4 при квоте в два чанка на титул — усечение рана
+# gte_only_n2_steps6.
+#
+# Отдельный ретривал не нужен по той же причине, что и у gte_only_steps4:
+# пул в режиме fixed фиксирован, ранжирование GTE не зависит от состояния, а
+# квота на титул считается только по уже выбранным чанкам. Значит выбор на 4
+# шага — префикс выбора на 6.
+label: GTE top-4, 2 чанка на титул
+slug: gte-only-n2-steps4
+
+order: 45
+hypothesis: >-
+  Разрешение брать второй чанк той же статьи достаёт gold-предложения,
+  запертые дедупликацией, и это перевешивает потерю одного титула из
+  бюджета.
+
+retrieve:
+  kind: variant
+  context: truncate
+  steps: 4
+  source_run: 2026-08-02-gte-only-n2-steps6
+
+judge:
+  script: /home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py
+  base_url: http://127.0.0.1:8010/v1
+  answer_model: Qwen3-4B
+  max_tokens: 1000
+  judge_max_tokens: 100
+  shards: 32

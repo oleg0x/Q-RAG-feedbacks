@@ -1,0 +1,32 @@
+# MuSiQue из eval-таблицы Search-R1: ридер вообще без контекста.
+#
+# Нижняя граница шкалы и единственный способ прочитать однохопные числа. У
+# Search-R1 строка Direct Inference на Qwen2.5-7B без ретривала даёт на
+# TriviaQA .408 при их же итоговых .638 — то есть большая часть числа там не
+# заслуга поиска, а знания модели. Без этой строки наш результат на TriviaQA,
+# PopQA и NQ невозможно интерпретировать.
+#
+# Производная от sr1-best-musique: берутся те же вопросы в том же порядке, а
+# pred_texts вычищаются. Ретривал не гоняется, GPU не нужен — поэтому ран
+# обязан идти после sr1_musique_best.
+label: no retrieval
+slug: sr1-noctx-musique
+dataset: sr1_musique
+
+order: 10
+hypothesis: >-
+  Сколько Qwen3-4B отвечает на MuSiQue без контекста вообще — нижняя граница,
+  относительно которой читаются обе поисковые строки.
+
+retrieve:
+  kind: variant
+  context: none
+  source_run: 2026-08-07-sr1-best-musique
+
+judge:
+  script: /home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py
+  base_url: http://127.0.0.1:8010/v1
+  answer_model: Qwen3-4B
+  max_tokens: 1000
+  judge_max_tokens: 100
+  shards: 32

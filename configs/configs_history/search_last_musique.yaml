@@ -1,0 +1,41 @@
+# Последний чекпоинт линии A на MuSiQue-Ans dev — OOD-строка пары best/last.
+#
+# Обоснование выбора — в search_last_hotpotqa.yaml. Этот датасет в обучении не
+# участвовал, поэтому сравнение здесь отвечает на отдельный вопрос: не
+# подстроился ли пик eval-кривой (а он снят на 1 000 вопросов HotpotQA dev)
+# под HotpotQA настолько, что на незнакомом датасете last окажется лучше
+# best. Если да, «лучший чекпоинт» выбран по чужой шкале.
+label: Прямой поиск, последний чекпоинт, 6 шагов, N=2
+slug: lineA-last-musique
+dataset: musique_ans_dev
+
+order: 49
+hypothesis: >-
+  Разница best и last на MuSiQue укладывается в шум. Систематический перевес
+  last означал бы, что выбор чекпоинта по eval-подвыборке HotpotQA вредит
+  переносу.
+
+retrieve:
+  kind: search
+  index_dir: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte
+  qrag_repo: /home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki
+  checkpoint: /home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki/runs/Aug03_12-44-38_lineA_main/model_last.pt
+  state_source: critic
+  input: /home/a.anokhin/Judge/full-wiki/runs/shared/musique_ans_dev_hotpot_schema.jsonl
+  cuda_visible_devices: "2"
+  device: cuda:0
+  model_dtype: float32
+  batch_size: 64
+  top_k: 100
+  steps: 6
+  max_chunks_per_title: 2
+  log_candidates: full
+  auto_prepare: false
+
+judge:
+  script: /home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py
+  base_url: http://127.0.0.1:8010/v1
+  answer_model: Qwen3-4B
+  max_tokens: 1000
+  judge_max_tokens: 100
+  shards: 32

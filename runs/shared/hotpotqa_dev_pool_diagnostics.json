@@ -1,0 +1,92 @@
+{
+  "examples": 7405,
+  "pool_size": [
+    100
+  ],
+  "gold_titles_per_example": [
+    2
+  ],
+  "ceiling_normalized": 0.8167454422687374,
+  "pool": {
+    "title_recall_at_pool": 0.6613099257258609,
+    "title_em_at_pool": 0.43794733288318705,
+    "share_of_ceiling": 0.5362103174603174,
+    "examples_with_no_gold": 0.11532748143146522,
+    "examples_with_one_gold": 0.44672518568534775,
+    "examples_with_all_gold": 0.43794733288318705
+  },
+  "gold_rank": {
+    "comment": "Позиции gold-титулов в ранжировании GTE, 0-based, отсортированные по возрастанию: 'best' — легче найденный gold, 'second' — следующий за ним. -1 означает «в пуле нет».",
+    "best_found": {
+      "median": 0.0,
+      "mean": 3.702946115096932,
+      "p90": 7.0,
+      "max": 99.0
+    },
+    "second_found": {
+      "median": 12.0,
+      "mean": 22.36077705827937,
+      "p90": 63.0,
+      "max": 99.0
+    },
+    "best_histogram": {
+      "missing": 854,
+      "1-1": 5081,
+      "2-5": 663,
+      "6-10": 233,
+      "11-20": 192,
+      "21-50": 222,
+      "51-100": 160,
+      "101+": 0
+    },
+    "second_histogram": {
+      "missing": 4162,
+      "1-1": 0,
+      "2-5": 855,
+      "6-10": 581,
+      "11-20": 605,
+      "21-50": 701,
+      "51-100": 501,
+      "101+": 0
+    },
+    "second_missing_given_first_found": 0.5049610746450923,
+    "examples_with_first_found": 6551
+  },
+  "oracle_by_titles": {
+    "2": {
+      "title_em": 0.43794733288318705,
+      "title_recall": 0.6613099257258609,
+      "share_of_ceiling": 0.5362103174603174
+    },
+    "4": {
+      "title_em": 0.43794733288318705,
+      "title_recall": 0.6613099257258609,
+      "share_of_ceiling": 0.5362103174603174
+    },
+    "6": {
+      "title_em": 0.43794733288318705,
+      "title_recall": 0.6613099257258609,
+      "share_of_ceiling": 0.5362103174603174
+    }
+  },
+  "chunk_granularity": {
+    "comment": "Титул в пуле есть — лежит ли в его чанке gold-предложение. 'full' — предложение целиком внутри чанка, 'partial' — половина (чанк Wiki-18 режется по 100 слов и рвёт предложения), 'none' — не найдено. 'selected_chunk' — лучший по рангу чанк титула, то есть тот, который возьмёт отбор при включённой дедупликации; 'any_chunk_in_pool' — верхняя граница, если бы разрешалось взять любой чанк статьи из пула.",
+    "selected_chunk": {
+      "full": 3037,
+      "partial": 2769,
+      "none": 3988,
+      "total": 9794
+    },
+    "any_chunk_in_pool": {
+      "full": 3685,
+      "partial": 3498,
+      "none": 2611,
+      "total": 9794
+    },
+    "titles_missing_sentence": 0.40718807433122317,
+    "examples_with_gold_in_pool": 6551,
+    "examples_losing_a_sentence": 0.7829339032208823
+  },
+  "input": "/home/a.anokhin/Judge/full-wiki/runs/2026-08-02-gte-pool-diag/retrieval.jsonl",
+  "gold_source": "/home/a.anokhin/Judge/datasets/data_sources/hotpotqa/hotpot_dev_distractor_v1.json"
+}

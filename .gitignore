@@ -1,0 +1,64 @@
+# Мусор интерпретатора и инструментов
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.orig
+*.tmp
+*.rej
+
+# Следы `pip install -e .`: README предлагает этот способ, и без правила
+# egg-info с build/ всплывают в git status у каждого, кто им воспользовался.
+build/
+dist/
+*.egg-info/
+
+# Внутренний слой лаборатории: остаётся на диске и обслуживает рабочий цикл,
+# но в публичный репозиторий не едет. STATE.md — незакрытая записка между
+# сессиями,
+# docs/prompts/ — сырые задания. Читателю они ничего не объясняют, а
+# устаревают быстрее всего остального.
+STATE.md
+docs/prompts/
+
+# runs/: в git попадает только реестр, полезная нагрузка остаётся на диске.
+# Порядок правил важен: git не может вернуть файл из исключённого каталога,
+# поэтому `!runs/*/` обязано стоять раньше негаций отдельных файлов.
+runs/**
+!runs/*/
+!runs/INDEX.md
+!runs/*/manifest.json
+!runs/*/metrics.json
+!runs/*/cmd.sh
+!runs/*/*.md
+!runs/*/judge_diagnostics.json
+# Наверху runs/ — только раны главной таблицы README, остальные в
+# runs/runs_history/<ран>/. Негации повторяются для второго уровня:
+# одним шаблоном оба уровня в gitignore не выразить.
+!runs/runs_history/*/
+!runs/runs_history/*/manifest.json
+!runs/runs_history/*/metrics.json
+!runs/runs_history/*/cmd.sh
+!runs/runs_history/*/*.md
+!runs/runs_history/*/judge_diagnostics.json
+!runs/shared/hotpotqa_dev_title_coverage.json
+!runs/shared/2wiki_dev_title_coverage.json
+!runs/shared/musique_ans_dev_title_coverage.json
+!runs/shared/hotpotqa_dev_pool_diagnostics.json
+!runs/shared/hotpotqa_dev_pool_diagnostics_k500.json
+!runs/shared/hotpotqa_dev_pool_diagnostics_k1000.json
+!runs/shared/hotpot_train_q0_s1_title_coverage.json
+!runs/shared/2wiki_train_q0_s1_title_coverage.json
+!runs/shared/combined_train_q0_s1_title_coverage.json
+
+# Запрет по умолчанию оставлен намеренно: он защищает репозиторий от случайно
+# закоммиченного полугигабайтного JSONL. Появился новый мелкий артефакт,
+# который нужно версионировать — добавьте его имя негацией выше.
+
+# Архив устаревших ранов не версионируется целиком
+runs/_archive/
+
+# Обучающая смесь: parquet весит 426 МБ, файл весов — 170 тыс. строк. Оба
+# восстанавливаются командой `python build_train_mix.py` из манифеста и
+# holdout, поэтому в git едут только они.
+train_data/raw/
+train_data/weights/

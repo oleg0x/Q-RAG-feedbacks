@@ -1,0 +1,23 @@
+type: occ  # llm, occ
+
+feedback_dict:
+  llm: ${feedback.llm_answer}
+  occ: ${feedback.occ_status}
+
+llm_answer:
+  _target_: rl.feedback.LlmAnswer
+  model: ${oc.env:VLLM_MODEL,Qwen3-4B}
+  base_url: ${oc.env:VLLM_BASE_URL,http://localhost:9000/v1}
+  api_key: ${oc.env:VLLM_API_KEY,''}
+  max_tokens: 1000
+  thinking: false
+  task: ${envs.task}
+  # Столько же, сколько у эвала (`--judge-max-tokens 100`): вердикт — одна
+  # строка, и запас в 500 токенов давал судье уехать в рассуждение.
+  judge_max_tokens: 100
+
+occ_status:
+  _target_: rl.feedback.OccStatus
+  llm_path: "../Qwen/OCC-RAG-1.7B"
+  gpu_util: 0.5
+  max_tokens: 2000

@@ -1,0 +1,42 @@
+# Стартовая точка линии A на MuSiQue-Ans: стоковая GTE-башня без чекпоинта.
+#
+# Вход — не сырой файл датасета, а результат build_musique_eval.py: у MuSiQue
+# вместо пары context/supporting_facts плоский список paragraphs, и без
+# конвертации пайплайн прошёл бы по нему молча, с пустыми gold-титулами и
+# title EM = 100% (см. docstring конвертера).
+#
+# Потолок покрытия корпуса — 72.11%
+# (runs/shared/musique_ans_dev_title_coverage.json), между HotpotQA 81.67% и
+# 2Wiki 51.05%.
+label: Прямой поиск, zero-shot GTE, 6 шагов, N=2
+slug: search-zeroshot-musique
+dataset: musique_ans_dev
+
+order: 47
+hypothesis: >-
+  Итеративный прямой поиск стоковой GTE-башней задаёт стартовую точку на
+  MuSiQue. Ожидание — ниже HotpotQA: у трети вопросов три и более переходов,
+  а вопросы MuSiQue собраны так, чтобы их нельзя было решить одним хопом.
+
+retrieve:
+  kind: search
+  index_dir: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte
+  qrag_repo: /home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki
+  input: /home/a.anokhin/Judge/full-wiki/runs/shared/musique_ans_dev_hotpot_schema.jsonl
+  cuda_visible_devices: "6"
+  device: cuda:0
+  model_dtype: float32
+  batch_size: 64
+  top_k: 100
+  steps: 6
+  max_chunks_per_title: 2
+  log_candidates: full
+  auto_prepare: false
+
+judge:
+  script: /home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py
+  base_url: http://127.0.0.1:8010/v1
+  answer_model: Qwen3-4B
+  max_tokens: 1000
+  judge_max_tokens: 100
+  shards: 32

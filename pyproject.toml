@@ -1,0 +1,39 @@
+[project]
+name = "fullwiki-qrag"
+version = "0.1.0"
+description = "Q-RAG на Wiki-18: ретривал по 21 млн чанков и answer-метрики на HotpotQA FullWiki"
+requires-python = ">=3.11"
+
+# Версии — те, на которых сняты все опубликованные раны (см. docs/reproducibility.md).
+# Нижние границы, а не точные пины: код не использует ничего, что ломалось бы в
+# минорных обновлениях, но воспроизводимость числа в RESULTS.md гарантируется
+# только на этих.
+dependencies = [
+    "torch>=2.10",
+    "numpy>=2.2",
+    "pandas>=3.0",
+    "pyyaml>=6.0",
+    "requests>=2.32",
+    "transformers>=4.57",
+    "sentence-transformers>=5.2",
+]
+
+[project.optional-dependencies]
+# faiss нужен только для сборки first-stage индекса
+# (build_index_wiki_gte.py, backend `faiss`). Для retrieval с
+# `candidate_backend: torch-cuda` он не требуется, поэтому вынесен отдельно.
+index = ["faiss-cpu>=1.14"]
+dev = ["pytest>=9.0"]
+
+[tool.pytest.ini_options]
+# Тесты импортируют модули по имени (`from fullwiki_qrag import ...`), поэтому
+# на sys.path нужен `src/` независимо от того, откуда запущен pytest. Корень
+# добавлен ради `import exp`: драйвер остался точкой входа и лежит в нём.
+pythonpath = ["src", "."]
+testpaths = ["tests"]
+addopts = "-q"
+# Q-RAG_for_full-wiki/ — отдельный репозиторий следующей фазы со своими
+# зависимостями (envs, vLLM_clients, gig_pipeline) и своим запуском тестов.
+# Без исключения pytest пытается собрать его модули и падает на импортах ещё
+# до того, как дойдёт до тестов лаборатории.
+norecursedirs = ["Q-RAG_for_full-wiki", "runs", ".git", "__pycache__"]

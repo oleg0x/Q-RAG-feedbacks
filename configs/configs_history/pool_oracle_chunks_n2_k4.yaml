@@ -1,0 +1,41 @@
+# Чанк-осознанный oracle с квотой в два чанка на титул: верхняя граница для
+# реранкера, которому разрешено то же, что и ослабленной дедупликации из
+# gte_only_n2_steps{4,6}.
+#
+# Зачем. Квота N=2 на голом first-stage выигрывает: EM 29.29% против 28.74%,
+# F1 +0.97 п.п. при парном t = +3.04. Значит верхняя граница чанкового
+# реранкера должна считаться в тех же правилах, иначе она занижена ровно на
+# то, что реранкер теперь умеет.
+#
+# Вторые чанки берутся раундами и только если несут gold-текст: сначала по
+# одному чанку на каждый найденный gold-титул, потом вторые чанки тех же
+# титулов, и лишь затем добор по рангу GTE. Иначе бюджет уходил бы на
+# повтор уже покрытой статьи вместо нового титула.
+label: oracle по чанкам, 4 чанка, 2 на титул
+slug: pool-oracle-chunks-n2-k4
+
+order: 79
+hypothesis: >-
+  Если реранкеру разрешено брать два чанка одной статьи, его верхняя граница
+  выше: gold-предложения, разорванные границей 100 слов, становятся
+  достижимыми целиком.
+
+retrieve:
+  kind: pool
+  source_run: 2026-08-02-gte-pool-diag
+  index_dir: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-qrag-jul21-best-raw
+  steps: 4
+
+  prefer: gold-sentence
+  gold_source: /home/a.anokhin/Judge/datasets/data_sources/hotpotqa/hotpot_dev_distractor_v1.json
+
+  # Единственное отличие от pool_oracle_chunks_k4.yaml.
+  max_per_title: 2
+
+judge:
+  script: /home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py
+  base_url: http://127.0.0.1:8010/v1
+  answer_model: Qwen3-4B
+  max_tokens: 1000
+  judge_max_tokens: 100
+  shards: 32

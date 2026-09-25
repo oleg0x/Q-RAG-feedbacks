@@ -1,0 +1,47 @@
+# First-stage GTE без Q-RAG: чанки берутся сверху вниз по ранжированию GTE.
+#
+# Baseline, относительно которого измеряется вклад Q-RAG. В режиме fixed он
+# префикс-согласован: выбор на 2 шага — буквально префикс выбора на 6, поэтому
+# бюджеты 2 и 4 получаются усечением этого рана (gte_only_steps{2,4}.yaml),
+# а не отдельным ретривалом.
+label: GTE top-6
+slug: gte-only-steps6
+
+# Позиция строки в таблице RESULTS.md.
+order: 40
+hypothesis: >-
+  Голый first-stage GTE — baseline, относительно которого измеряется вклад
+  Q-RAG.
+
+retrieve:
+  kind: qrag
+  index_dir: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-qrag-jul21-best-raw
+  candidate_index_dir: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte
+  candidate_backend: torch-cuda
+  qrag_repo: /home/a.anokhin/Judge/Q-RAG-feedback
+  input: /home/a.anokhin/Judge/datasets/data_sources/hotpotqa/hotpot_dev_fullwiki_v1.json
+  cuda_visible_devices: "1"
+  device: cuda:0
+  model_dtype: float32
+  state_source: critic
+  batch_size: 64
+  top_k: 100
+  steps: 6
+  mode: fixed
+
+  # none отключает Q-RAG-скоринг целиком: не грузится ни state-башня, ни
+  # action-шарды.
+  reranker: none
+  log_candidates: none
+
+  dedupe_titles: true
+  trust_remote_code: true
+  auto_prepare: false
+
+judge:
+  script: /home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py
+  base_url: http://127.0.0.1:8010/v1
+  answer_model: Qwen3-4B
+  max_tokens: 1000
+  judge_max_tokens: 100
+  shards: 32

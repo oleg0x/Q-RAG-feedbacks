@@ -1,0 +1,28 @@
+# GTE top-2 — усечение рана gte_only_steps6 до двух чанков.
+#
+# Отдельный ретривал не нужен: в режиме fixed пул кандидатов фиксирован, а
+# ранжирование GTE не зависит от состояния, поэтому выбор на 2 шага —
+# префикс выбора на 6. Для Q-RAG так делать нельзя: каждый хоп переранжирует
+# пул, и build_eval_variants.py отказывается усекать такие раны.
+label: GTE top-2
+slug: gte-only-steps2
+
+# Позиция строки в таблице RESULTS.md.
+order: 20
+hypothesis: >-
+  Голый first-stage GTE — baseline, относительно которого измеряется вклад
+  Q-RAG.
+
+retrieve:
+  kind: variant
+  context: truncate
+  steps: 2
+  source_run: 2026-07-28-gte-only-steps6
+
+judge:
+  script: /home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py
+  base_url: http://127.0.0.1:8010/v1
+  answer_model: Qwen3-4B
+  max_tokens: 1000
+  judge_max_tokens: 100
+  shards: 32

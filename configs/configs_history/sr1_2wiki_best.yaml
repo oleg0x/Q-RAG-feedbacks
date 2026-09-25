@@ -1,0 +1,51 @@
+# 2WikiMultiHopQA из eval-таблицы Search-R1: обученная башня линии A.
+#
+# Мультихопный, in-domain у нас и out-of-domain у Search-R1 — зеркало NQ.
+#
+# Конфигурация ретривала — ровно та, что дала опубликованные 37.70/30.31/10.14
+# на наших собственных dev-сплитах: шесть шагов, квота N=2, шесть чанков
+# ридеру. Одна модель и одна настройка на все семь датасетов; подгонять бюджет
+# под каждый значило бы настраивать на eval.
+#
+# Читается только вместе с двумя своими соседями на тех же вопросах:
+# sr1_2wiki_zeroshot (та же башня без чекпоинта) и sr1_2wiki_noctx (ридер без
+# контекста вообще). Без первого неизвестно, что дало обучение, без второго —
+# сколько Qwen3-4B отвечает по памяти.
+#
+# Gold-титулов у этого входа нет, поэтому title-метрики и доля потолка
+# остаются null. Главное число — EM по алиасам: Search-R1 считает EM
+# максимумом по всему golden_answers.
+label: Прямой поиск, обученная башня, 6 шагов, N=2
+slug: sr1-best-2wiki
+dataset: sr1_2wiki
+
+order: 48
+hypothesis: >-
+  Обученная state-башня линии A на 2WikiMultiHopQA (12576 вопросов) обгоняет и свой
+  zero-shot, и ридер без контекста; результат ставится рядом с
+  Search-R1-base-7B на том же корпусе Wiki-18 и тех же вопросах.
+
+retrieve:
+  kind: search
+  index_dir: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte
+  qrag_repo: /home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki
+  checkpoint: /home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki/runs/Aug03_12-44-38_lineA_main/model_best.pt
+  state_source: critic
+  input: /home/a.anokhin/Judge/full-wiki/runs/shared/searchr1/2wikimultihopqa.jsonl
+  cuda_visible_devices: "0"
+  device: cuda:0
+  model_dtype: float32
+  batch_size: 64
+  top_k: 100
+  steps: 6
+  max_chunks_per_title: 2
+  log_candidates: none
+  auto_prepare: false
+
+judge:
+  script: /home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py
+  base_url: http://127.0.0.1:8010/v1
+  answer_model: Qwen3-4B
+  max_tokens: 1000
+  judge_max_tokens: 100
+  shards: 32

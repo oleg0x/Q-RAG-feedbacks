@@ -1,0 +1,24 @@
+# Ридер без контекста вообще — нижняя граница шкалы.
+#
+# Производная от gte_only_steps6: берутся те же вопросы и тот же порядок, но
+# pred_texts вычищаются. Так строка гарантированно сопоставима с остальными
+# по составу выборки.
+label: no retrieval
+slug: no-retrieval
+
+# Позиция строки в таблице RESULTS.md.
+order: 10
+hypothesis: Сколько ридер отвечает вообще без контекста — нижняя граница.
+
+retrieve:
+  kind: variant
+  context: none
+  source_run: 2026-07-28-gte-only-steps6
+
+judge:
+  script: /home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py
+  base_url: http://127.0.0.1:8010/v1
+  answer_model: Qwen3-4B
+  max_tokens: 1000
+  judge_max_tokens: 100
+  shards: 32

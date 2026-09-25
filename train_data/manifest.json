@@ -1,0 +1,49 @@
+{
+  "created_utc": "2026-08-08T17:18:16.609495+00:00",
+  "dataset": "PeterJinGo/nq_hotpotqa_train",
+  "files": {
+    "test.parquet": {
+      "bytes": 70370337,
+      "sha256": "30aa887b6d47e06e8c0f6f5307c88fe4e13461ac25a20ec0a5433ad7a4fe25dc"
+    },
+    "train.parquet": {
+      "bytes": 355663891,
+      "sha256": "c3cc21e862a8469105de666101578cbff23cdc77e91a803cef102622c89cc4f6"
+    }
+  },
+  "holdout": {
+    "per_source": 1000,
+    "seed": 42,
+    "size": 2000
+  },
+  "revision": "b7d80abfee334a7a91cb377544f09180d58b34f6",
+  "test_parquet_matches_searchr1": true,
+  "train": {
+    "answer_variants_max": 25,
+    "answer_variants_mean": 1.1032220027709814,
+    "multi_answer_share": 0.045691713586652125,
+    "rows": 169615,
+    "sources": {
+      "hotpotqa": {
+        "answer_variants_max": 1,
+        "answer_variants_mean": 1.0,
+        "multi_answer_share": 0.0,
+        "rows": 90447,
+        "share": 0.5332488282286354
+      },
+      "nq": {
+        "answer_variants_max": 25,
+        "answer_variants_mean": 1.2211499595796282,
+        "multi_answer_share": 0.09789308811641068,
+        "rows": 79168,
+        "share": 0.46675117177136455
+      }
+    }
+  },
+  "weights": {
+    "a1.jsonl": {
+      "drawable": 167615,
+      "rows": 169615
+    }
+  }
+}

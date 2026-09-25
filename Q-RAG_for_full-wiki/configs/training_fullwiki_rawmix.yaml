@@ -1,0 +1,49 @@
+# Линия A на сырой смеси NQ + HotpotQA.
+# Всё, кроме данных и eval, повторяет training_fullwiki_search.yaml: две руки
+# ветки (Qwen3-4B и Qwen3-8B в роли ридера и судьи) обязаны совпадать во всём,
+# кроме модели награды, и разводятся только переменными окружения
+# VLLM_MODEL / VLLM_BASE_URL.
+defaults:
+  - algo: pqn_gte
+  - envs: fullwiki_rawmix
+  - feedback: llm
+  - logger: logging
+  - _self_
+
+seed: 42
+device: cuda:0
+steps_count: 30000
+batch_size: 24
+accumulate_grads: 4
+eval_interval: 500
+# Весь holdout: по 1000 примеров каждой половины смеси.
+eval_episodes: 2000
+envs_parallel: 16
+max_action_length: 256
+max_action_length_in_memory: 256
+train_action_embed: false
+learning_start: 0
+
+feedback:
+  type: llm
+
+algo:
+  pqn:
+    state_embed:
+      normalize: false
+    state_embed_target:
+      normalize: false
+    hyperparams:
+      top_k_actions: ${envs.top_k}
+      q_head:
+        scale_init: 0.048
+        lr: 1e-3
+      alpha_schedule:
+        kind: constant
+        start: ${algo.pqn.hyperparams.alpha}
+  optimizer:
+    lr: 5e-6
+  scheduler:
+    total: ${steps_count}
+    warmup: 1000
+    ratio: 0.1

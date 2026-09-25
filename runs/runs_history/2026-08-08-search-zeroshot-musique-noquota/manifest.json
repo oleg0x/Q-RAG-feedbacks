@@ -1,0 +1,198 @@
+{
+  "code": {
+    "git_commit": "d3a5d639214d7da14b1869c1e20aba8b755b544c",
+    "git_dirty": true,
+    "git_dirty_files": [
+      "runs_index.py"
+    ],
+    "scripts": {
+      "build_eval_variants.py": "5c71e40dddaa3e3552e1236140e0d845b439c6a68cf382c51e439cb49570d1a0",
+      "build_index_wiki_gte.py": "3325f876bcc8eccdd3d1091c4069627567df213e20038d74fa49fff8bddf17df",
+      "build_index_wiki_qrag.py": "a3500fa16ca0d25aa5934e5041907ab0ce9a46fe1e62fe696353d6d3a52cec53",
+      "candidate_pool.py": "afd6f2731194463aa1903ffc32e797b4abfcfdb77bf6f93c0047c2b0d1567e69",
+      "exp.py": "90f4f45fd98b8d7f8701bbc09ae855382494b7015ab726faf25f7490b5fd8d12",
+      "fullwiki_qrag.py": "a4f3e830af975697a010ce10db16a64258ead5c3432230906c196c01ae1fbc6f",
+      "report_phase0.py": "37cce35bb1037923409152e14fb30132cf2234194e1896cebaed97271226fa7e"
+    }
+  },
+  "config": {
+    "config_file": "search_zeroshot_musique_noquota.yaml",
+    "dataset": "musique_ans_dev",
+    "hypothesis": "Без квоты стоковая башня схлопывается в одну-две статьи: сейчас она берёт второй чанк в 99.8% эпизодов и упирается в потолок квоты, то есть маска — единственное, что мешает ей взять шесть чанков одной статьи. Ожидание — крупное падение всех answer-метрик, задающее масштаб эффекта квоты.",
+    "judge": {
+      "answer_model": "Qwen3-4B",
+      "base_url": "http://127.0.0.1:8010/v1",
+      "judge_max_tokens": 100,
+      "max_tokens": 1000,
+      "script": "/home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py",
+      "shards": 32
+    },
+    "label": "Прямой поиск, zero-shot GTE, 6 шагов, без квоты",
+    "order": 47.2,
+    "retrieve": {
+      "auto_prepare": false,
+      "batch_size": 64,
+      "cuda_visible_devices": "1",
+      "device": "cuda:0",
+      "index_dir": "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte",
+      "input": "/home/a.anokhin/Judge/full-wiki/runs/shared/musique_ans_dev_hotpot_schema.jsonl",
+      "kind": "search",
+      "log_candidates": "none",
+      "max_chunks_per_title": 6,
+      "model_dtype": "float32",
+      "qrag_repo": "/home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki",
+      "steps": 6,
+      "top_k": 100
+    },
+    "slug": "search-zeroshot-musique-noquota"
+  },
+  "created_utc": "2026-08-08T12:25:27.451538+00:00",
+  "env": {
+    "cuda_visible_devices": null,
+    "executable": "/home/a.anokhin/venvs/gpu/bin/python",
+    "faiss": null,
+    "gpu": [
+      "0, NVIDIA H200, 143771 MiB",
+      "1, NVIDIA H200, 143771 MiB",
+      "2, NVIDIA H200, 143771 MiB",
+      "3, NVIDIA H200, 143771 MiB",
+      "4, NVIDIA H200, 143771 MiB",
+      "5, NVIDIA H200, 143771 MiB",
+      "6, NVIDIA H200, 143771 MiB",
+      "7, NVIDIA H200, 143771 MiB"
+    ],
+    "numpy": "2.2.6",
+    "python": "3.11.14",
+    "sentence-transformers": "5.2.3",
+    "torch": "2.10.0",
+    "transformers": "4.57.6"
+  },
+  "finished_utc": "2026-08-08T12:29:39.796271+00:00",
+  "hypothesis": "Без квоты стоковая башня схлопывается в одну-две статьи: сейчас она берёт второй чанк в 99.8% эпизодов и упирается в потолок квоты, то есть маска — единственное, что мешает ей взять шесть чанков одной статьи. Ожидание — крупное падение всех answer-метрик, задающее масштаб эффекта квоты.",
+  "inputs": {
+    "action_artifact": null,
+    "corpus": {
+      "contents_field": "contents",
+      "faiss_id_mapping": "zero-based JSONL row number",
+      "require_id": true,
+      "rows": 21015324,
+      "sha256": "43d7d3f58d01d711d95b00b70584211eea639fa46802905a4b7e11cf0617752d",
+      "size_bytes": 14393573105,
+      "source_path": "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/data00/jiajie_jin/flashrag_indexes/wiki_dpr_100w/wiki_dump.jsonl",
+      "tar_member": null,
+      "validate_id_matches_row": true
+    },
+    "dataset": {
+      "path": "/home/a.anokhin/Judge/full-wiki/runs/shared/musique_ans_dev_hotpot_schema.jsonl",
+      "sha256": "a2996d330e2a82274282ad39d3664977d80b75f2d1d9db6b9d0584495ba7d5d0",
+      "size_bytes": 26626982
+    },
+    "encoder": {
+      "dimension": 768,
+      "max_length": 256,
+      "model": "Alibaba-NLP/gte-multilingual-base",
+      "resolved_revision": "9bbca17d9273fd0d03d5725c7a4b0f6b45142062"
+    },
+    "index_dir": "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte"
+  },
+  "metrics": {
+    "chunks_max": 6,
+    "chunks_min": 6,
+    "em": 0.045510964004964835,
+    "em_given_hit": 0.22727272727272727,
+    "em_given_miss": 0.040408336877924285,
+    "empty_predictions": 2,
+    "f1": 0.10655393707966318,
+    "hit_share": 0.0273065784029789,
+    "judge": 0.08522962350020687,
+    "samples": 2417,
+    "share_of_ceiling": 0.0378657487091222,
+    "title_em": 0.0273065784029789,
+    "title_em_exact": 0.0273065784029789,
+    "title_recall": 0.24662115570266172
+  },
+  "run_id": "2026-08-08-search-zeroshot-musique-noquota",
+  "schema_version": 1,
+  "stages": [
+    {
+      "argv": [
+        "/home/a.anokhin/venvs/gpu/bin/python",
+        "fullwiki_qrag.py",
+        "search",
+        "--index-dir",
+        "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte",
+        "--qrag-repo",
+        "/home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki",
+        "--device",
+        "cuda:0",
+        "--model-dtype",
+        "float32",
+        "--input",
+        "/home/a.anokhin/Judge/full-wiki/runs/shared/musique_ans_dev_hotpot_schema.jsonl",
+        "--output",
+        "/home/a.anokhin/Judge/full-wiki/runs/2026-08-08-search-zeroshot-musique-noquota/retrieval.jsonl",
+        "--batch-size",
+        "64",
+        "--top-k",
+        "100",
+        "--steps",
+        "6",
+        "--max-chunks-per-title",
+        "6",
+        "--log-candidates",
+        "none",
+        "--no-auto-prepare"
+      ],
+      "env": {
+        "CUDA_VISIBLE_DEVICES": "1",
+        "HF_HUB_OFFLINE": "1",
+        "TRANSFORMERS_OFFLINE": "1"
+      },
+      "exit_code": 0,
+      "name": "retrieve",
+      "output": "retrieval.jsonl",
+      "records": 2417,
+      "seconds": 157.4,
+      "sha256": "2ca9417106810d4471aebd15e6a869f19a282f19dd7c0d0d05d51efd8ec6b936",
+      "size_bytes": 16591165
+    },
+    {
+      "argv": [
+        "/home/a.anokhin/venvs/gpu/bin/python",
+        "/home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py",
+        "--retriever-logfile",
+        "<shard>.jsonl",
+        "--output-file",
+        "<shard>.json",
+        "--base-url",
+        "http://127.0.0.1:8010/v1",
+        "--answer-model",
+        "Qwen3-4B",
+        "--max-samples",
+        "100000",
+        "--max-tokens",
+        "1000",
+        "--judge-max-tokens",
+        "100"
+      ],
+      "exit_code": 0,
+      "name": "judge",
+      "output": "answer_judge.json",
+      "records": 2417,
+      "seconds": 94.1,
+      "sha256": "abb6f363f004c23a6644bab059da2b42f7912346e027eb7b5f08655434e8d6f4",
+      "shards": 32,
+      "size_bytes": 16792439
+    },
+    {
+      "argv": null,
+      "command": "runlib.score_judge_file → metrics.json",
+      "dataset": "musique_ans_dev",
+      "exit_code": 0,
+      "name": "score",
+      "output": "metrics.json",
+      "seconds": 0.3
+    }
+  ],
+  "status": "ok"
+}

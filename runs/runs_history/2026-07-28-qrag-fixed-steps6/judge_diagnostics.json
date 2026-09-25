@@ -1,0 +1,12 @@
+{
+  "input": "runs/fullwiki_qrag_fixed_steps6_answer_judge_mt1000.json",
+  "samples": 500,
+  "strict_judge_score": 0.358,
+  "normalized_judge_score": 0.358,
+  "score_delta": 0.0,
+  "noncanonical_replies": 0,
+  "noncanonical_share": 0.0,
+  "flipped_by_normalization": 0,
+  "most_common_noncanonical": [],
+  "flipped_examples": []
+}

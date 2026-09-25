@@ -1,0 +1,51 @@
+# Refresh-baseline без реранкера: после каждого выбранного чанка GTE
+# запрашивается заново запросом "вопрос [SEP] чанк1 [SEP] ...".
+#
+# Контрольный ран: та же схема, но длина запроса 256 — как в манифесте индекса и во всех прежних ранах. Разница с q1024 на шести шагах и есть цена обрезки запроса.
+#
+# Усекать этот ран нельзя. В refresh пул кандидатов меняется между шагами,
+# поэтому выбор на 2 чанка не является префиксом выбора на 6 —
+# build_eval_variants.py отказывается усекать refresh-раны именно поэтому.
+# Каждый бюджет чанков здесь отдельный ретривал.
+label: GTE refresh 256, 6 шагов
+slug: gte-refresh-q256-steps6
+
+order: 44
+hypothesis: >-
+  Пересчёт запроса первой стадии после каждого чанка поднимает покрытие
+  gold-титулов относительно fixed без всякого обучения — при условии, что
+  запросу хватает длины, чтобы добавленные чанки в него поместились.
+
+retrieve:
+  kind: qrag
+  index_dir: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-qrag-jul21-best-raw
+  candidate_index_dir: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte
+  candidate_backend: torch-cuda
+  qrag_repo: /home/a.anokhin/Judge/Q-RAG-feedback
+  input: /home/a.anokhin/Judge/datasets/data_sources/hotpotqa/hotpot_dev_fullwiki_v1.json
+  cuda_visible_devices: "3"
+  device: cuda:0
+  model_dtype: float32
+  state_source: critic
+  batch_size: 64
+  top_k: 100
+  steps: 6
+  mode: refresh
+  reranker: none
+  log_candidates: none
+
+  # Длина запроса первой стадии в токенах. Корпус закодирован с 256 и это не
+  # меняется; растёт только сторона запроса.
+  first_stage_query_length: 256
+
+  dedupe_titles: true
+  trust_remote_code: true
+  auto_prepare: false
+
+judge:
+  script: /home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py
+  base_url: http://127.0.0.1:8010/v1
+  answer_model: Qwen3-4B
+  max_tokens: 1000
+  judge_max_tokens: 100
+  shards: 32

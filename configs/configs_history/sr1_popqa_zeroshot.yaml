@@ -1,0 +1,40 @@
+# PopQA из eval-таблицы Search-R1: стоковая GTE-башня без чекпоинта.
+#
+# Внутренний baseline строки sr1_popqa_best на тех же вопросах и том же
+# бюджете чанков. Правило из docs/gotchas.md: строка без baseline на том же
+# бюджете ничего не утверждает — без неё «у нас X против Y у Search-R1» не
+# отвечает на вопрос, дало ли обучение хоть что-то.
+#
+# Башня стоковая, поэтому первый шаг математически воспроизводит
+# GTE-ранжирование, а дальше запрос обрастает найденными чанками.
+label: Прямой поиск, zero-shot GTE, 6 шагов, N=2
+slug: sr1-zeroshot-popqa
+dataset: sr1_popqa
+
+order: 47
+hypothesis: >-
+  Итеративный прямой поиск стоковой GTE-башней задаёт стартовую точку на
+  PopQA: разница с sr1-best-popqa и есть вклад обучения.
+
+retrieve:
+  kind: search
+  index_dir: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte
+  qrag_repo: /home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki
+  input: /home/a.anokhin/Judge/full-wiki/runs/shared/searchr1/popqa.jsonl
+  cuda_visible_devices: "0"
+  device: cuda:0
+  model_dtype: float32
+  batch_size: 64
+  top_k: 100
+  steps: 6
+  max_chunks_per_title: 2
+  log_candidates: none
+  auto_prepare: false
+
+judge:
+  script: /home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py
+  base_url: http://127.0.0.1:8010/v1
+  answer_model: Qwen3-4B
+  max_tokens: 1000
+  judge_max_tokens: 100
+  shards: 32

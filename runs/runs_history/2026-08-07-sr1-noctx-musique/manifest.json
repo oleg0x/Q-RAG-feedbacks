@@ -1,0 +1,189 @@
+{
+  "code": {
+    "git_commit": "abb8688d46a1843cf34623942252d0e297cdb2ef",
+    "git_dirty": true,
+    "git_dirty_files": [
+      "build_searchr1_eval.py",
+      "exp.py",
+      "report_phase0.py",
+      "runlib.py",
+      "runs_index.py",
+      "searchr1_table.py",
+      "test_build_searchr1_eval.py",
+      "test_exp.py",
+      "test_report_phase0.py",
+      "test_searchr1_table.py"
+    ],
+    "scripts": {
+      "build_eval_variants.py": "5c71e40dddaa3e3552e1236140e0d845b439c6a68cf382c51e439cb49570d1a0",
+      "build_index_wiki_gte.py": "3325f876bcc8eccdd3d1091c4069627567df213e20038d74fa49fff8bddf17df",
+      "build_index_wiki_qrag.py": "a3500fa16ca0d25aa5934e5041907ab0ce9a46fe1e62fe696353d6d3a52cec53",
+      "candidate_pool.py": "afd6f2731194463aa1903ffc32e797b4abfcfdb77bf6f93c0047c2b0d1567e69",
+      "exp.py": "90f4f45fd98b8d7f8701bbc09ae855382494b7015ab726faf25f7490b5fd8d12",
+      "fullwiki_qrag.py": "a4f3e830af975697a010ce10db16a64258ead5c3432230906c196c01ae1fbc6f",
+      "report_phase0.py": "37cce35bb1037923409152e14fb30132cf2234194e1896cebaed97271226fa7e"
+    }
+  },
+  "config": {
+    "config_file": "sr1_musique_noctx.yaml",
+    "dataset": "sr1_musique",
+    "hypothesis": "Сколько Qwen3-4B отвечает на MuSiQue без контекста вообще — нижняя граница, относительно которой читаются обе поисковые строки.",
+    "judge": {
+      "answer_model": "Qwen3-4B",
+      "base_url": "http://127.0.0.1:8010/v1",
+      "judge_max_tokens": 100,
+      "max_tokens": 1000,
+      "script": "/home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py",
+      "shards": 32
+    },
+    "label": "no retrieval",
+    "order": 10,
+    "retrieve": {
+      "context": "none",
+      "kind": "variant",
+      "source_run": "2026-08-07-sr1-best-musique"
+    },
+    "slug": "sr1-noctx-musique"
+  },
+  "created_utc": "2026-08-07T18:23:37.744235+00:00",
+  "env": {
+    "cuda_visible_devices": null,
+    "executable": "/home/a.anokhin/venvs/gpu/bin/python",
+    "faiss": null,
+    "gpu": [
+      "0, NVIDIA H200, 143771 MiB",
+      "1, NVIDIA H200, 143771 MiB",
+      "2, NVIDIA H200, 143771 MiB",
+      "3, NVIDIA H200, 143771 MiB",
+      "4, NVIDIA H200, 143771 MiB",
+      "5, NVIDIA H200, 143771 MiB",
+      "6, NVIDIA H200, 143771 MiB",
+      "7, NVIDIA H200, 143771 MiB"
+    ],
+    "numpy": "2.2.6",
+    "python": "3.11.14",
+    "sentence-transformers": "5.2.3",
+    "torch": "2.10.0",
+    "transformers": "4.57.6"
+  },
+  "finished_utc": "2026-08-07T18:24:09.537265+00:00",
+  "hypothesis": "Сколько Qwen3-4B отвечает на MuSiQue без контекста вообще — нижняя граница, относительно которой читаются обе поисковые строки.",
+  "inputs": {
+    "source_inputs": {
+      "action_artifact": null,
+      "checkpoint": {
+        "path": "/home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki/runs/Aug03_12-44-38_lineA_main/model_best.pt",
+        "sha256": "c8b2212d4b1e04449623a35acabe2ea8abc06d09acc22b6a87e29a2ea5c9db36",
+        "size_bytes": 7333936023
+      },
+      "corpus": {
+        "contents_field": "contents",
+        "faiss_id_mapping": "zero-based JSONL row number",
+        "require_id": true,
+        "rows": 21015324,
+        "sha256": "43d7d3f58d01d711d95b00b70584211eea639fa46802905a4b7e11cf0617752d",
+        "size_bytes": 14393573105,
+        "source_path": "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/data00/jiajie_jin/flashrag_indexes/wiki_dpr_100w/wiki_dump.jsonl",
+        "tar_member": null,
+        "validate_id_matches_row": true
+      },
+      "dataset": {
+        "path": "/home/a.anokhin/Judge/full-wiki/runs/shared/searchr1/musique.jsonl",
+        "sha256": "c3565d54d3c86adb5f54aec420db14998fb65297266793f1edb11954faaa851b",
+        "size_bytes": 556618
+      },
+      "encoder": {
+        "dimension": 768,
+        "max_length": 256,
+        "model": "Alibaba-NLP/gte-multilingual-base",
+        "resolved_revision": "9bbca17d9273fd0d03d5725c7a4b0f6b45142062"
+      },
+      "index_dir": "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte"
+    },
+    "source_run": "2026-08-07-sr1-best-musique"
+  },
+  "metrics": {
+    "chunks_max": 0,
+    "chunks_min": 0,
+    "em": 0.01737691352916839,
+    "em_alias": 0.02399669011170873,
+    "em_given_hit": null,
+    "em_given_miss": null,
+    "empty_predictions": 0,
+    "f1": 0.09703201901554476,
+    "f1_alias": 0.10470192415560635,
+    "hit_share": null,
+    "judge": 0.050475796441870086,
+    "samples": 2417,
+    "share_of_ceiling": null,
+    "title_em": null,
+    "title_em_exact": null,
+    "title_recall": null,
+    "with_aliases": 680
+  },
+  "run_id": "2026-08-07-sr1-noctx-musique",
+  "schema_version": 1,
+  "stages": [
+    {
+      "argv": [
+        "/home/a.anokhin/venvs/gpu/bin/python",
+        "build_eval_variants.py",
+        "--context",
+        "none",
+        "--input",
+        "/home/a.anokhin/Judge/full-wiki/runs/2026-08-07-sr1-best-musique/retrieval.jsonl",
+        "--output",
+        "/home/a.anokhin/Judge/full-wiki/runs/2026-08-07-sr1-noctx-musique/retrieval.jsonl"
+      ],
+      "env": {
+        "HF_HUB_OFFLINE": "1",
+        "TRANSFORMERS_OFFLINE": "1"
+      },
+      "exit_code": 0,
+      "name": "retrieve",
+      "output": "retrieval.jsonl",
+      "records": 2417,
+      "seconds": 0.3,
+      "sha256": "2e78aa8b68f0213ab9920174bcd1f39840f62dd5bfc05404b6312324c918ef30",
+      "size_bytes": 1339355
+    },
+    {
+      "argv": [
+        "/home/a.anokhin/venvs/gpu/bin/python",
+        "/home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py",
+        "--retriever-logfile",
+        "<shard>.jsonl",
+        "--output-file",
+        "<shard>.json",
+        "--base-url",
+        "http://127.0.0.1:8010/v1",
+        "--answer-model",
+        "Qwen3-4B",
+        "--max-samples",
+        "100000",
+        "--max-tokens",
+        "1000",
+        "--judge-max-tokens",
+        "100"
+      ],
+      "exit_code": 0,
+      "name": "judge",
+      "output": "answer_judge.json",
+      "records": 2417,
+      "seconds": 31.1,
+      "sha256": "d1ecdfb7c2ee6d1976184e22ae893967f869ba49ede4a2bb8750131fecb668f1",
+      "shards": 32,
+      "size_bytes": 1561598
+    },
+    {
+      "argv": null,
+      "command": "runlib.score_judge_file → metrics.json",
+      "dataset": "sr1_musique",
+      "exit_code": 0,
+      "name": "score",
+      "output": "metrics.json",
+      "seconds": 0.2
+    }
+  ],
+  "status": "ok"
+}

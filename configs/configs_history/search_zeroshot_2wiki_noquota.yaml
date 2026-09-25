@@ -1,0 +1,58 @@
+# Уровень 1 ablation квоты дедупликации: стоковая GTE-башня без чекпоинта на
+# полном dev 2WikiMultiHopQA, всё как в search_zeroshot_2wiki.yaml,
+# отличается ровно одно поле — max_chunks_per_title.
+#
+# Зачем: N=2 выбрано в фазе 0 по замеру на стоковой GTE top-6 (+0.55 п.п. EM,
+# McNemar z = +1.7, docs/training.md:90) и с тех пор не проверялось ни на
+# обученной башне, ни на других датасетах. При этом квота — рабочая ручка, а
+# не страховка: по сохранённым retrieval.jsonl второй чанк уже взятого титула
+# берут 99.8% эпизодов, и это 38.5% всех взятых чанков при
+# потолке 50% — без квоты стоковая башня брала бы одну статью шесть раз.
+#
+# N=6 при steps=6 — это «квоты нет»: счётчик чанков на титул не успевает
+# дойти до шести за шесть шагов, поэтому маска не срабатывает ни разу.
+# Отдельного флага у подкоманды search нет, а --no-dedupe-titles есть только
+# у retrieve; повтор той же строки запрещён независимо от квоты
+# (blocked_rows), поэтому один и тот же чанк дважды эпизод не возьмёт.
+#
+# Три датасета берутся не для широты, а для мощности. Эффект ожидается около
+# 0.5 п.п.; на одном HotpotQA при ~550 дискордантных парах McNemar разрешает
+# только ~0.63 п.п. на z = 2, а 22 398 пар вместе — около 0.35 п.п. Главными
+# читать F1 и judge (парный t): на том же размене фазы 0 EM дал z = +1.7, а
+# F1 — t = +3.04 на тех же данных.
+label: Прямой поиск, zero-shot GTE, 6 шагов, без квоты
+slug: search-zeroshot-2wiki-noquota
+dataset: 2wiki_dev
+
+order: 47.2
+hypothesis: >-
+  Без квоты стоковая башня схлопывается в одну-две статьи: сейчас она берёт
+  второй чанк в 99.8% эпизодов и упирается в потолок квоты, то есть маска —
+  единственное, что мешает ей взять шесть чанков одной статьи. Ожидание —
+  крупное падение всех answer-метрик, задающее масштаб эффекта квоты.
+
+retrieve:
+  kind: search
+  index_dir: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte
+  qrag_repo: /home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki
+  input: /home/a.anokhin/Judge/datasets/data_sources/2WikiMultiHopQA/data_ids_april7/dev.json
+  cuda_visible_devices: "1"
+  device: cuda:0
+  model_dtype: float32
+  batch_size: 64
+  top_k: 100
+  steps: 6
+  max_chunks_per_title: 6
+
+  # none, а не full: покандидатная диагностика этой серии не нужна, а
+  # сохранённые пулы N=2 для неё уже лежат в ранах 2026-08-05-lineA-best-*.
+  log_candidates: none
+  auto_prepare: false
+
+judge:
+  script: /home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py
+  base_url: http://127.0.0.1:8010/v1
+  answer_model: Qwen3-4B
+  max_tokens: 1000
+  judge_max_tokens: 100
+  shards: 32

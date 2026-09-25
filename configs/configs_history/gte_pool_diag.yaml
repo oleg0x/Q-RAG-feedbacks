@@ -1,0 +1,54 @@
+# Диагностический ретривал: тот же GTE top-100, что и у gte_only_steps6, но с
+# сохранением всего пула кандидатов.
+#
+# Зачем отдельный ран. Все восемь канонических ранов сделаны с
+# `log_candidates: none`, поэтому списков кандидатов в их retrieval.jsonl нет,
+# а без них нельзя ответить, что вообще достижимо реранкингом. Выбор чанков
+# здесь совпадает с `2026-07-28-gte-only-steps6` чанк в чанк: отличается
+# только объём лога.
+#
+# Стадия judge для этого рана не нужна и не запускается: ответы уже измерены
+# канонической строкой GTE top-6. Запускать как
+# `exp.py run --config configs/gte_pool_diag.yaml --only retrieve`.
+label: GTE top-6 (диагностика пула)
+slug: gte-pool-diag
+
+# Ран без метрик, в таблицу сравнения он не попадает; порядок задан только
+# чтобы он не мешался в середине runs/INDEX.md.
+order: 900
+hypothesis: >-
+  Сохранённый top-100 GTE позволяет измерить потолок пула: сколько
+  gold-титулов в нём есть и сколько ответов даёт идеальный выбор из него.
+
+retrieve:
+  kind: qrag
+  index_dir: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-qrag-jul21-best-raw
+  candidate_index_dir: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte
+  candidate_backend: torch-cuda
+  qrag_repo: /home/a.anokhin/Judge/Q-RAG-feedback
+  input: /home/a.anokhin/Judge/datasets/data_sources/hotpotqa/hotpot_dev_fullwiki_v1.json
+  cuda_visible_devices: "1"
+  device: cuda:0
+  model_dtype: float32
+  state_source: critic
+  batch_size: 64
+  top_k: 100
+  steps: 6
+  mode: fixed
+  reranker: none
+
+  # Единственное отличие от gte_only_steps6.yaml: пул сохраняется целиком.
+  # Это ~1.5 ГБ retrieval.jsonl против 41 МБ у канонического рана.
+  log_candidates: full
+
+  dedupe_titles: true
+  trust_remote_code: true
+  auto_prepare: false
+
+judge:
+  script: /home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py
+  base_url: http://127.0.0.1:8010/v1
+  answer_model: Qwen3-4B
+  max_tokens: 1000
+  judge_max_tokens: 100
+  shards: 32

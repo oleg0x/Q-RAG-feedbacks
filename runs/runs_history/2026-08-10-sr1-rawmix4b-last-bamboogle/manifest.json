@@ -1,0 +1,215 @@
+{
+  "code": {
+    "git_commit": "5abcda68a595455fd7c05e861fd306984451753a",
+    "git_dirty": false,
+    "git_dirty_files": [],
+    "scripts": {
+      "answer_judge.py": "6ecf2880dae14b61dcf6409caecf61a4e99cff353c7d387fc88b5a5e524a688e",
+      "build_eval_variants.py": "5c71e40dddaa3e3552e1236140e0d845b439c6a68cf382c51e439cb49570d1a0",
+      "build_index_wiki_gte.py": "3325f876bcc8eccdd3d1091c4069627567df213e20038d74fa49fff8bddf17df",
+      "build_index_wiki_qrag.py": "a3500fa16ca0d25aa5934e5041907ab0ce9a46fe1e62fe696353d6d3a52cec53",
+      "candidate_pool.py": "afd6f2731194463aa1903ffc32e797b4abfcfdb77bf6f93c0047c2b0d1567e69",
+      "exp.py": "b4c2cd5325894190cabe697ab33371d807656248117eee1a4ad1c7ca76c1d763",
+      "fullwiki_qrag.py": "a4f3e830af975697a010ce10db16a64258ead5c3432230906c196c01ae1fbc6f",
+      "report_phase0.py": "7888de3f0115b4401d1148238a0c4d21cc4d5ef4aaf66e7c278683bcbf0c5868"
+    }
+  },
+  "config": {
+    "config_file": "sr1_rawmix4b-last_bamboogle.yaml",
+    "dataset": "sr1_bamboogle",
+    "hypothesis": "Обучение на смеси с NQ переносит прирост за пределы holdout: на мультихопных датасетах строка обгоняет ветку HotpotQA+2Wiki, на однохопных — как минимум не проигрывает ей.",
+    "judge": {
+      "answer_model": "Qwen3-4B",
+      "base_url": "http://127.0.0.1:8010/v1",
+      "judge_max_tokens": 100,
+      "max_tokens": 1000,
+      "shards": 32
+    },
+    "label": "Сырая смесь NQ+HotpotQA, Qwen3-4B, последний (шаг 30 000)",
+    "order": 113,
+    "retrieve": {
+      "auto_prepare": false,
+      "batch_size": 64,
+      "checkpoint": "/home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki/runs/Aug08_20-39-33_rawmix4b/model_last.pt",
+      "cuda_visible_devices": "0",
+      "device": "cuda:0",
+      "index_dir": "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte",
+      "input": "/home/a.anokhin/Judge/full-wiki/runs/shared/searchr1/bamboogle.jsonl",
+      "kind": "search",
+      "log_candidates": "none",
+      "max_chunks_per_title": 2,
+      "model_dtype": "float32",
+      "qrag_repo": "/home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki",
+      "state_source": "critic",
+      "steps": 6,
+      "top_k": 100
+    },
+    "slug": "sr1-rawmix4b-last-bamboogle"
+  },
+  "created_utc": "2026-08-10T20:47:57.103898+00:00",
+  "env": {
+    "cuda_visible_devices": null,
+    "executable": "/home/a.anokhin/venvs/gpu/bin/python",
+    "faiss": null,
+    "gpu": [
+      "0, NVIDIA H200, 143771 MiB",
+      "1, NVIDIA H200, 143771 MiB",
+      "2, NVIDIA H200, 143771 MiB",
+      "3, NVIDIA H200, 143771 MiB",
+      "4, NVIDIA H200, 143771 MiB",
+      "5, NVIDIA H200, 143771 MiB",
+      "6, NVIDIA H200, 143771 MiB",
+      "7, NVIDIA H200, 143771 MiB"
+    ],
+    "numpy": "2.2.6",
+    "python": "3.11.14",
+    "sentence-transformers": "5.2.3",
+    "torch": "2.10.0",
+    "transformers": "4.57.6"
+  },
+  "finished_utc": "2026-08-10T20:49:18.765301+00:00",
+  "hypothesis": "Обучение на смеси с NQ переносит прирост за пределы holdout: на мультихопных датасетах строка обгоняет ветку HotpotQA+2Wiki, на однохопных — как минимум не проигрывает ей.",
+  "inputs": {
+    "action_artifact": null,
+    "checkpoint": {
+      "path": "/home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki/runs/Aug08_20-39-33_rawmix4b/model_last.pt",
+      "sha256": "8c78b181dc5b9899c0026264e0e2c57c500f9a7d1afdd152057c984c1bb7dbb7",
+      "size_bytes": 7333936023
+    },
+    "corpus": {
+      "contents_field": "contents",
+      "faiss_id_mapping": "zero-based JSONL row number",
+      "require_id": true,
+      "rows": 21015324,
+      "sha256": "43d7d3f58d01d711d95b00b70584211eea639fa46802905a4b7e11cf0617752d",
+      "size_bytes": 14393573105,
+      "source_path": "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/data00/jiajie_jin/flashrag_indexes/wiki_dpr_100w/wiki_dump.jsonl",
+      "tar_member": null,
+      "validate_id_matches_row": true
+    },
+    "dataset": {
+      "path": "/home/a.anokhin/Judge/full-wiki/runs/shared/searchr1/bamboogle.jsonl",
+      "sha256": "a5542f8aa57a77d567105a6a7ec92a226dfa097c1ed91cb19457bfdef64661fa",
+      "size_bytes": 23393
+    },
+    "encoder": {
+      "dimension": 768,
+      "max_length": 256,
+      "model": "Alibaba-NLP/gte-multilingual-base",
+      "resolved_revision": "9bbca17d9273fd0d03d5725c7a4b0f6b45142062"
+    },
+    "index_dir": "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte"
+  },
+  "metrics": {
+    "chunks_max": 6,
+    "chunks_min": 6,
+    "em": 0.208,
+    "em_alias": 0.208,
+    "em_given_hit": null,
+    "em_given_miss": null,
+    "empty_predictions": 0,
+    "f1": 0.29817142857142864,
+    "f1_alias": 0.29817142857142864,
+    "hit_share": null,
+    "judge": 0.256,
+    "judge_imputed_share": 0.208,
+    "samples": 125,
+    "share_of_ceiling": null,
+    "title_em": null,
+    "title_em_exact": null,
+    "title_recall": null,
+    "with_aliases": 0
+  },
+  "run_id": "2026-08-10-sr1-rawmix4b-last-bamboogle",
+  "schema_version": 1,
+  "stages": [
+    {
+      "argv": [
+        "/home/a.anokhin/venvs/gpu/bin/python",
+        "fullwiki_qrag.py",
+        "search",
+        "--index-dir",
+        "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte",
+        "--qrag-repo",
+        "/home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki",
+        "--device",
+        "cuda:0",
+        "--model-dtype",
+        "float32",
+        "--input",
+        "/home/a.anokhin/Judge/full-wiki/runs/shared/searchr1/bamboogle.jsonl",
+        "--output",
+        "/home/a.anokhin/Judge/full-wiki/runs/2026-08-10-sr1-rawmix4b-last-bamboogle/retrieval.jsonl",
+        "--batch-size",
+        "64",
+        "--top-k",
+        "100",
+        "--steps",
+        "6",
+        "--max-chunks-per-title",
+        "2",
+        "--log-candidates",
+        "none",
+        "--checkpoint",
+        "/home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki/runs/Aug08_20-39-33_rawmix4b/model_last.pt",
+        "--state-source",
+        "critic",
+        "--no-auto-prepare"
+      ],
+      "env": {
+        "CUDA_VISIBLE_DEVICES": "0",
+        "HF_HUB_OFFLINE": "1",
+        "TRANSFORMERS_OFFLINE": "1"
+      },
+      "exit_code": 0,
+      "name": "retrieve",
+      "output": "retrieval.jsonl",
+      "records": 125,
+      "seconds": 65.9,
+      "sha256": "ee9e343d4683651aecc083e4cfc86a98e5f1ba13ddb18781103014a840142762",
+      "size_bytes": 610902
+    },
+    {
+      "argv": [
+        "/home/a.anokhin/venvs/gpu/bin/python",
+        "/home/a.anokhin/Judge/full-wiki/answer_judge.py",
+        "--retriever-logfile",
+        "<shard>.jsonl",
+        "--output-file",
+        "<shard>.json",
+        "--base-url",
+        "http://127.0.0.1:8010/v1",
+        "--answer-model",
+        "Qwen3-4B",
+        "--max-samples",
+        "100000",
+        "--max-tokens",
+        "1000",
+        "--judge-max-tokens",
+        "100",
+        "--contract",
+        "v2",
+        "--dataset",
+        "sr1_bamboogle"
+      ],
+      "exit_code": 0,
+      "name": "judge",
+      "output": "answer_judge.json",
+      "records": 125,
+      "seconds": 7.0,
+      "sha256": "2bd54e9a6e04d78ec6c6c19141052d7d8730b6425b48b64fad00e01310da5577",
+      "shards": 32,
+      "size_bytes": 640035
+    },
+    {
+      "argv": null,
+      "command": "runlib.score_judge_file → metrics.json",
+      "dataset": "sr1_bamboogle",
+      "exit_code": 0,
+      "name": "score",
+      "output": "metrics.json",
+      "seconds": 0.0
+    }
+  ],
+  "status": "ok"
+}

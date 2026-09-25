@@ -1,0 +1,17 @@
+# Версии окружения, в котором сняты все раны из RESULTS.md. Python 3.11.14.
+# Для `pip install -e .` этот файл не нужен, он для точного воспроизведения.
+#
+# torch ставится под свою CUDA отдельно: pip install torch --index-url
+# https://download.pytorch.org/whl/cu124 (или соответствующий вашей карте).
+torch==2.10.0
+numpy==2.2.6
+pandas==3.0.1
+pyyaml==6.0.3
+transformers==4.57.6
+sentence-transformers==5.2.3
+
+# Только для сборки first-stage индекса (build_index_wiki_gte.py --backend faiss).
+faiss-cpu==1.14.3
+
+# Тесты.
+pytest==9.0.2

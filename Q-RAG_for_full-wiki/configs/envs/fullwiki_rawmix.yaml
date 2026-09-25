@@ -1,0 +1,65 @@
+# Сырая смесь NQ + HotpotQA — та же, на которой учится Search-R1.
+# Отличие от fullwiki_search.yaml только в данных: множество действий, маски,
+# горизонт и exploration те же, меняется выборка эпизодов и её разметка.
+#
+# Прошлая ветка училась на HotpotQA + 2Wiki и на однохопных бенчмарках не дала
+# ничего (на NQ знак отрицательный, 34.4 → 33.4). Смесь меняется под гипотезу,
+# что выучилось многошаговое поведение, а не поиск как таковой.
+task: NQ+HotPotQA
+
+max_steps: 6
+top_k: 100
+max_chunks_per_title: 2
+separator: " [SEP] "
+feedback_workers: ${envs_parallel}
+
+rollout_train_mode: false
+
+positions_processor: none
+positions_processor_dict:
+  none:
+    _target_: envs.text_env.AbsolutePositionProcessor
+
+exploration:
+  epsilon: 0.1
+  injection_sampling: boltzmann
+  temperature:
+    kind: linear
+    start: 1.0
+    final: 0.3
+    warmup: 0
+    total: ${steps_count}
+
+index:
+  shard_dir: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte/embedding-shards
+  rows: 21015324
+  dim: 768
+
+title_table: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte/corpus-title-ids.npy
+corpus: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/data00/jiajie_jin/flashrag_indexes/wiki_dpr_100w/wiki_dump.jsonl
+offsets: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte/corpus-row-offsets.npy
+
+# Сырой parquet целиком, без фильтрации и без дедупликации против eval
+# (проверено: пересечения нет). Собирается src/build_train_mix.py лаборатории.
+train_data_path: /home/a.anokhin/Judge/full-wiki_v2/train_data
+train_dataset:
+  _target_: envs.RetrievalNqHotpotqa
+  path: ${envs.train_data_path}/raw
+  split: train
+  seed: ${seed}
+
+# Веса эпизодов: 1 везде, 0 на holdout. Через этот файл — и исключение
+# holdout, и будущие фильтрованные руки A2/A3: при одном сиде они будут
+# отличаться только им, и последовательность примеров останется сопоставимой.
+train_weights: ${envs.train_data_path}/weights/a1.jsonl
+
+# Валидация — тот же holdout, по 1000 примеров каждой половины смеси, и
+# кривые раздельные. Прошлая ветка мерила eval только по HotpotQA при обучении
+# на смеси: плато означало остановку роста одной половины, а не обучения.
+eval_dataset:
+  _target_: envs.RetrievalNqHotpotqa
+  path: ${envs.train_data_path}/raw
+  split: train
+  ids_file: ${envs.train_data_path}/holdout.json
+  length: ${eval_episodes}
+  seed: ${seed}

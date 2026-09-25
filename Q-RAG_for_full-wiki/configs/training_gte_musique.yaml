@@ -1,0 +1,22 @@
+defaults:
+  - algo: pqn_gte
+  - envs: musique
+  - feedback: llm
+  - logger: logging
+  - _self_
+
+seed: 42
+device: cuda
+learning_start: 200
+steps_count: 30000
+batch_size: 64
+accumulate_grads: 1
+eval_interval: 100
+eval_episodes: 500
+envs_parallel: 1
+max_action_length: 256
+max_action_length_in_memory: 128
+
+feedback:
+  llm_answer:
+    task: Musique

@@ -1,0 +1,19 @@
+defaults:
+- envs: hotpotqa_2wiki_q0_s1
+- feedback: candidate_beta
+- algo: pqn_gte
+- logger: logging
+- _self_
+
+seed: 42
+device: 'cuda:0'
+learning_start: 200
+steps_count: 50_000
+batch_size: 64
+accumulate_grads: 2
+train_action_embed: true
+eval_interval: 500
+eval_episodes: 300
+envs_parallel: 1
+max_action_length: 256
+max_action_length_in_memory: 256

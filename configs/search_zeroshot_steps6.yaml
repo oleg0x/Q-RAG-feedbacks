@@ -1,0 +1,40 @@
+# Ступень 3 лестницы линии A (docs/training.md): zero-shot прямого поиска.
+# Башня — стоковая GTE без чекпоинта, поэтому первый шаг математически
+# воспроизводит GTE-ранжирование, а дальше запрос обрастает найденными
+# чанками. Это стартовая точка, без которой обученную цифру не прочитать:
+# 33% после обучения означают разное, если старт был 29% или 24%.
+#
+# Сравнивать с gte-only-n2-steps6 (29.29% EM): у обоих квота N=2 и бюджет
+# шесть чанков, отличается только итеративность запроса.
+label: Прямой поиск, zero-shot GTE, 6 шагов, N=2
+slug: search-zeroshot-steps6
+
+order: 47
+hypothesis: >-
+  Итеративный прямой поиск стоковой GTE-башней (запрос = состояние) с
+  квотой N=2 задаёт стартовую точку линии A. Ожидание — окрестность
+  GTE top-6 N=2: итеративность без обучения может и помогать (второй хоп
+  виден в запросе), и мешать (разбавление вопроса текстом, как у refresh).
+
+retrieve:
+  kind: search
+  index_dir: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte
+  qrag_repo: /home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki
+  input: /home/a.anokhin/Judge/datasets/data_sources/hotpotqa/hotpot_dev_fullwiki_v1.json
+  cuda_visible_devices: "1"
+  device: cuda:0
+  model_dtype: float32
+  batch_size: 64
+  top_k: 100
+  steps: 6
+  max_chunks_per_title: 2
+  log_candidates: none
+  auto_prepare: false
+
+judge:
+  script: /home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py
+  base_url: http://127.0.0.1:8010/v1
+  answer_model: Qwen3-4B
+  max_tokens: 1000
+  judge_max_tokens: 100
+  shards: 32
