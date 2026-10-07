@@ -33,7 +33,7 @@ def write_tiny_corpus(path: Path) -> list[dict]:
     rows = [
         {"id": "0", "contents": '"First title"\nFirst passage.'},
         {"id": "1", "contents": '"Quoted \\"title\\""\nSecond passage.'},
-        {"id": "2", "contents": '"Third title"\nUnicode: Привет.'},
+        {"id": "2", "contents": '"Third title"\nUnicode: Zürich.'},
     ]
     with path.open("w", encoding="utf-8") as destination:
         for row in rows:
@@ -189,11 +189,11 @@ def test_fixed_dot_product_can_change_second_hop_choice() -> None:
     second = int(np.argmax(second_scores))
     assert (first, second) == (0, 1)
 def test_text_memory_has_nonempty_padding_sentinel() -> None:
-    # Путь строится от файла теста, а не от cwd: иначе тест проходит только
-    # при запуске из /home/a.anokhin/Judge и падает из каталога full-wiki.
-    # Берётся Q-RAG_for_full-wiki, а не read-only оригинал: ровно этот `envs`
-    # инференс линии A получает через `qrag_repo` конфига, и ровно он едет в
-    # публикацию — тест обязан проходить и без соседнего Q-RAG-feedback.
+    # The path is built from the test file, not the cwd, so the test passes
+    # from any working directory. Q-RAG_for_full-wiki is used rather than the
+    # read-only original: it is exactly the `envs` that line A inference gets
+    # via the config's `qrag_repo` and the one that is published, so the test
+    # must pass without a neighbouring Q-RAG-feedback.
     qrag_repo = Path(__file__).resolve().parent.parent / "Q-RAG_for_full-wiki"
     retrieval.add_qrag_repo_to_path(qrag_repo)
     memories = retrieval.make_text_memories(["question"], [[]], " [SEP] ")
@@ -302,8 +302,8 @@ def test_reranker_none_is_prefix_consistent_across_step_budgets() -> None:
 
 
 def test_one_chunk_per_title_skips_the_neighbouring_chunk() -> None:
-    # Прежнее поведение --dedupe-titles: титул закрыт первым взятым чанком,
-    # поэтому второй хоп уходит на другую статью.
+    # The original --dedupe-titles behaviour: a title is closed by the first
+    # chunk taken, so the second hop goes to another article.
     runner = make_two_stage(
         reranker="none", shards=ExplodingShards(), corpus=SplitArticleCorpus()
     )
@@ -319,8 +319,9 @@ def test_two_chunks_per_title_reach_the_neighbouring_chunk() -> None:
         max_chunks_per_title=2,
     )
     result = runner._retrieve_two_stage(["question"], top_k=3, steps=3, refresh=False)
-    # Квота 2 пускает второй чанк той же статьи, но не третий: после двух
-    # чанков «Split» титул закрывается и отбор уходит на «Other».
+    # Quota 2 admits the second chunk of the same article but not a third:
+    # after two "Split" chunks the title is closed and selection moves to
+    # "Other".
     assert result[0]["pred_idx"] == [0, 1, 2]
 
 
@@ -342,12 +343,12 @@ def cli_args(*extra: str):
 
 
 def test_chunk_quota_defaults_to_the_published_deduplication() -> None:
-    # Умолчание обязано воспроизводить опубликованные раны: один чанк на
-    # титул, то есть прежнее --dedupe-titles.
+    # The default must reproduce the published runs: one chunk per title,
+    # i.e. the original --dedupe-titles.
     assert cli_args().max_chunks_per_title == 1
     assert retrieval.chunks_per_title(cli_args()) == 1
     assert retrieval.chunks_per_title(cli_args("--max-chunks-per-title", "2")) == 2
-    # Выключенная дедупликация — это отсутствие квоты, а не квота в единицу.
+    # Disabled deduplication means no quota, not a quota of one.
     assert retrieval.chunks_per_title(cli_args("--no-dedupe-titles")) is None
 
 
@@ -424,8 +425,8 @@ def test_title_metrics_report_both_exact_and_normalized() -> None:
     assert result["title_em"] == 1.0
     assert result["title_recall"] == 1.0
 def test_query_length_defaults_to_the_corpus_encoding_length() -> None:
-    # Умолчание обязано повторять поведение опубликованных ранов: длина
-    # запроса берётся из манифеста индекса, а не задаётся числом в коде.
+    # The default must match the published runs: the query length comes from
+    # the index manifest, not from a number hard-coded here.
     assert retrieval.resolve_query_length(256, None) == 256
     assert retrieval.resolve_query_length(256, 1024) == 1024
 
@@ -458,8 +459,8 @@ def test_retrieve_cli_leaves_query_length_unset_by_default() -> None:
 
 
 def test_refresh_query_grows_with_every_selected_chunk() -> None:
-    # Ровно та строка, которую обрезает лимит в 256 токенов; тест фиксирует,
-    # что обрезать действительно есть что.
+    # Exactly the string that the 256-token limit truncates; the test pins
+    # down that there really is something to truncate.
     runner = make_two_stage(reranker="none", shards=ExplodingShards())
     assert runner._state_texts(["question"], [[]]) == ["question"]
     assert runner._state_texts(["question"], [["chunk-1", "chunk-2"]]) == [

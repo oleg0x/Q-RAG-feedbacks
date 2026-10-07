@@ -1,30 +1,32 @@
-# Обученная state-башня линии A на полном dev 2WikiMultiHopQA.
+# Trained state tower of line A on the full 2WikiMultiHopQA dev set.
 #
-# 2Wiki — in-domain: его train-сплит вместе с train-сплитом HotpotQA и составил
-# обучающую выборку (envs.train_data_path рана Aug03_12-44-38_lineA_main).
-# Утечки при этом нет: пересечение 120 631 обучающего примера с этим dev по id
-# и по тексту вопроса — ноль.
+# 2Wiki is in-domain: its train split, together with the HotpotQA train split,
+# formed the training set (envs.train_data_path of run
+# Aug03_12-44-38_lineA_main). There is no leakage: the overlap between the
+# 120,631 training examples and this dev set, by id and by question text, is
+# zero.
 #
-# Пара для чтения — search_zeroshot_2wiki.yaml на тех же вопросах и том же
-# бюджете. Потолок покрытия корпуса 51.05%, поэтому абсолютный EM здесь и на
-# HotpotQA несравним; сравнима доля потолка.
-label: Прямой поиск, обученная башня, 6 шагов, N=2
+# Paired with search_zeroshot_2wiki.yaml on the same questions and budget. The
+# corpus coverage ceiling is 51.05%, so absolute EM here and on HotpotQA is not
+# comparable; the fraction of the ceiling is.
+label: Direct search, trained tower, 6 steps, N=2
 slug: lineA-best-2wiki
 dataset: 2wiki_dev
 
 order: 48
 hypothesis: >-
-  Обучение поднимает answer-метрики на 2Wiki так же, как на HotpotQA: датасет
-  in-domain, но 22% его вопросов требуют четырёх различных gold-статей при
-  бюджете в шесть чанков и квоте N=2, поэтому выигрыш может оказаться меньше.
+  Training improves answer metrics on 2Wiki as it does on HotpotQA. The
+  dataset is in-domain, but 22% of its questions require four distinct gold
+  articles under a six-chunk budget with quota N=2, so the gain may be
+  smaller.
 
 retrieve:
   kind: search
-  index_dir: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte
-  qrag_repo: /home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki
-  checkpoint: /home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki/runs/Aug03_12-44-38_lineA_main/model_best.pt
+  index_dir: /path/to/data/full-wiki/wiki18-gte
+  qrag_repo: Q-RAG_for_full-wiki
+  checkpoint: Q-RAG_for_full-wiki/runs/Aug03_12-44-38_lineA_main/model_best.pt
   state_source: critic
-  input: /home/a.anokhin/Judge/datasets/data_sources/2WikiMultiHopQA/data_ids_april7/dev.json
+  input: /path/to/data/2WikiMultiHopQA/data_ids_april7/dev.json
   cuda_visible_devices: "6"
   device: cuda:0
   model_dtype: float32
@@ -36,7 +38,8 @@ retrieve:
   auto_prepare: false
 
 judge:
-  script: /home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py
+  script: src/answer_judge.py
+  contract: v1
   base_url: http://127.0.0.1:8010/v1
   answer_model: Qwen3-4B
   max_tokens: 1000

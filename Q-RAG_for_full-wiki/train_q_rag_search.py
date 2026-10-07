@@ -1,18 +1,20 @@
-"""Обучение линии A: Q-RAG как итеративный плотный ретривер по Wiki-18.
+"""Line A training: Q-RAG as an iterative dense retriever over Wiki-18.
 
-Отличия от ``train_q_rag.py`` — не в цикле обучения, а в том, откуда берутся
-действия. Здесь их даёт поиск ``s @ M.T`` по всем 21 015 324 строкам, а не
-список кандидатов из датасета, поэтому сборка объектов другая:
+The difference from ``train_q_rag.py`` is not in the training loop but in where
+actions come from. Here they come from searching ``s @ M.T`` over all
+21,015,324 rows rather than from a candidate list in the dataset, so the
+objects are assembled differently:
 
-* матрица ``M`` (шарды ``wiki18-gte``) резидентно лежит на GPU, 60.1 ГиБ;
-* таблица титулов нужна для квоты ``N`` и для флага покрытия эпизода;
-* корпус читается по таблице смещений — за текстом выбранного чанка;
-* среды шагаются батчем, а не циклом (см. ``envs/parallel_search_env.py``).
+* the matrix ``M`` (``wiki18-gte`` shards) stays resident on the GPU, 60.1 GiB;
+* the title table is needed for the quota ``N`` and the episode coverage flag;
+* the corpus is read through an offset table to get the selected chunk's text;
+* environments are stepped in a batch, not a loop (see
+  ``envs/parallel_search_env.py``).
 
-Запуск:
+Usage:
 
     HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
-    /home/a.anokhin/venvs/gpu/bin/python train_q_rag_search.py
+    /path/to/venv/bin/python train_q_rag_search.py
 """
 
 import os
@@ -48,12 +50,12 @@ from rl.q_module import SearchBoltzmannPolicy
 
 
 def split_config_name(argv: list[str], default: str) -> tuple[str, list[str]]:
-    """Вынуть ``--config-name`` из аргументов, остальное отдать overrides.
+    """Extract ``--config-name`` from the arguments; the rest are overrides.
 
-    ``compose`` берёт имя конфига параметром, а не оверрайдом, и хардкод
-    имени означал, что вторая ветка обучения запускается только правкой
-    исходника. Отдельный разбор, а не ``@hydra.main``: скрипт сознательно
-    собирает конфиг сам, чтобы дописать в него каталог лога.
+    ``compose`` takes the config name as a parameter, not an override, and a
+    hard-coded name would mean a second training config could only be run by
+    editing the source. Parsed by hand rather than via ``@hydra.main``: the
+    script composes the config itself on purpose to add the log directory.
     """
     name = default
     overrides = []
@@ -65,7 +67,7 @@ def split_config_name(argv: list[str], default: str) -> tuple[str, list[str]]:
         elif item == "--config-name":
             index += 1
             if index >= len(argv):
-                raise SystemExit("--config-name без значения")
+                raise SystemExit("--config-name requires a value")
             name = argv[index]
         else:
             overrides.append(item)
@@ -88,13 +90,13 @@ def load_config(name: str = "training_fullwiki_search.yaml") -> DictConfig:
 
 
 def stamp_manifest(cfg: DictConfig) -> None:
-    """Записать в конфиг то, чего в нём не видно: модель награды и карты.
+    """Record in the config what it does not show: the reward model and GPUs.
 
-    ``base_url`` и ``model`` приходят переменными окружения, а ``config.yaml``
-    сохраняется без резолва интерполяций — по сохранённому файлу нельзя
-    сказать, какой моделью считалась награда и на какой карте шёл ран. Руки
-    ветки обязаны совпадать во всём, кроме модели награды, и сверять это надо
-    по файлу рана, а не по памяти запускавшего.
+    ``base_url`` and ``model`` come from environment variables, and
+    ``config.yaml`` is saved with interpolations unresolved, so the saved file
+    alone does not tell which model computed the reward or which GPU the run
+    used. Compared runs must match in everything except the reward model, and
+    this has to be checked from the run's file, not from memory.
     """
     feedback = cfg.feedback.feedback_dict[cfg.feedback.type]
     OmegaConf.update(
@@ -166,13 +168,13 @@ def evaluation_samples(cfg: DictConfig, title_table: TitleTable) -> list[dict]:
 def log_subset(
     writer: SummaryWriter, prefix: str, subset: list[dict], step: int
 ) -> None:
-    """Награда и обе её половины одним блоком.
+    """Reward and both of its parts in one block.
 
-    reward == em_alias + доля спасённых судьёй, поэтому обе величины пишутся
-    рядом: без них рост кривой награды нечитаем — она могла вырасти и по EM,
-    и по мягкости судьи. Чистый EM (по основному ответу) идёт третьим: это
-    итоговая метрика ветки, и её расхождение с наградой обязано быть видно по
-    ходу рана, а не в разборе потом.
+    reward == em_alias + share rescued by the judge, so both are logged side by
+    side: without them a rising reward curve is unreadable, as it could come
+    from EM or from a lenient judge. Plain EM (on the main answer) is logged
+    third: it is the final metric, and its divergence from the reward must be
+    visible during the run, not only in a post-hoc analysis.
     """
     writer.add_scalar(
         f"{prefix}/reward", float(np.mean([i["reward"] for i in subset])), step
@@ -189,12 +191,11 @@ def log_subset(
 
 
 def log_evaluation(writer: SummaryWriter, results: list[dict], step: int) -> float:
-    """Кривые eval и величина, по которой выбирается ``model_best``.
+    """Eval curves and the value used to select ``model_best``.
 
-    Отбор идёт по **среднему двух кривых**, а не по общей средней: половины
-    смеси разного размера и разной трудности, и микро-среднее означало бы
-    выбор чекпоинта по той половине, которой в holdout больше. Ровно на этом
-    погорела прошлая ветка — eval шёл только по HotpotQA при обучении на смеси.
+    Selection uses the **mean of the per-source curves**, not the overall mean:
+    the halves of the mix differ in size and difficulty, and a micro-average
+    would pick the checkpoint by whichever half dominates the holdout.
     """
     log_subset(writer, "eval", results, step)
     for covered in (True, False):
@@ -244,8 +245,8 @@ def main() -> int:
 
     agent = PQN(cfg.algo)
     if agent.top_k_actions != int(cfg.envs.top_k):
-        # Пул политики обязан совпадать с пулом поиска: иначе V считается по
-        # части кандидатов, а действие выбирается из всех.
+        # The policy pool must equal the search pool: otherwise V is computed
+        # over part of the candidates while the action is chosen from all.
         raise ValueError(
             f"pqn.hyperparams.top_k_actions={agent.top_k_actions} must equal "
             f"envs.top_k={cfg.envs.top_k}"
@@ -259,8 +260,8 @@ def main() -> int:
     index = build_index(cfg, title_table)
     dataset, envs = build_envs(cfg, title_table)
     eval_samples = evaluation_samples(cfg, title_table)
-    # Имена титулов дальше не нужны: маскирование и мониторинг работают с
-    # целыми идентификаторами, а список строк весит сотни мегабайт.
+    # Title names are not needed from here on: masking and monitoring use
+    # integer ids, and the list of strings takes hundreds of megabytes.
     title_table.titles = None
 
     parallel_env = ParallelSearchEnv(
@@ -281,8 +282,9 @@ def main() -> int:
         device=cfg.device,
     )
 
-    # Температура exploration — своё расписание, не привязанное ни к lr, ни к
-    # α критика: у неё другие единицы (логиты уже поделены на свой разброс).
+    # The exploration temperature has its own schedule, tied neither to lr
+    # nor to the critic's α: its units differ (logits are already divided by
+    # their spread).
     temperature_schedule = AlphaSchedule(
         start=float(cfg.envs.exploration.temperature.start),
         kind=str(cfg.envs.exploration.temperature.kind),
@@ -333,8 +335,8 @@ def main() -> int:
                     "train/exploration_temperature", parallel_env.policy.temperature, step
                 )
                 if agent.critic.calibrated:
-                    # w, уходящий к нулю, — ранний признак того же распада,
-                    # что убил переобучение без калибровки: следить глазами.
+                    # w going to zero is an early sign of the same collapse
+                    # seen in training without calibration: watch this curve.
                     writer.add_scalar(
                         "train/q_scale", float(agent.critic.q_scale), step
                     )
@@ -343,9 +345,9 @@ def main() -> int:
                     )
                 for name, value in stats.items():
                     writer.add_scalar(name, value, step)
-                # Статистика копится с прошлой записи, не с последнего rollout:
-                # эпизоды завершаются не в каждом вызове, и без накопления
-                # эпизодные кривые на точках записи были систематически пусты.
+                # Stats accumulate since the last log write, not the last
+                # rollout: episodes do not finish in every call, and without
+                # accumulation episode curves were systematically empty.
                 parallel_env.reset_monitor()
 
                 results = parallel_env.run_episodes(agent, eval_samples)
@@ -363,8 +365,8 @@ def main() -> int:
                     agent.save(ckpt_best_path)
                 train_rewards = []
     except VllmUnavailableError as error:
-        # Сервер молчит дольше порога: продолжать значит писать в лог часы
-        # пустых кривых. Чекпоинт сохраняется, чтобы ран можно было поднять.
+        # The server has been silent past the threshold: continuing would log
+        # hours of empty curves. A checkpoint is saved so the run can resume.
         agent.save(ckpt_last_path, verbose=True)
         print(f"[ERROR] {error}")
         return 1

@@ -6,24 +6,24 @@ import copy
 
 
 def logsumexp(inputs: Tensor, attention_mask: Tensor, dim=1, keepdim=False):
-    """Численно устойчивый logsumexp по доступным действиям.
+    """Numerically stable logsumexp over the available actions.
 
-    Сдвиг берётся по максимуму **уже замаскированных** логитов, а не по всем.
-    Прежний вариант сдвигал по глобальному максимуму: при alpha≈0.005 разрыв
-    больше ~0.1 обнуляет экспоненту, и если глобальный максимум замаскирован,
-    V схлопывается в `max − 0.1`, то есть в Q-значение **недоступного**
-    действия. На десяти кандидатах и двух шагах это почти не срабатывало, при
-    маскировании по титулам над 21 млн строк — постоянно.
+    The shift is the maximum of the **already masked** logits, not of all of
+    them. Shifting by the global maximum breaks at alpha≈0.005: a gap above
+    ~0.1 zeroes the exponent, and if the global maximum is masked, V collapses
+    to `max − 0.1`, i.e. the Q-value of an **unavailable** action. This is rare
+    with ten candidates and two steps but constant with per-title masking over
+    21M rows.
 
-    Замаскированные слагаемые зануляются через `-inf` до экспоненты, а не
-    умножением на маску после: `exp` от большого логита даёт `inf`, а
-    `inf * 0` — это `nan`, и один замаскированный выброс отравил бы весь батч.
+    Masked terms are set to `-inf` before the exponent rather than multiplied
+    by the mask afterwards: `exp` of a large logit is `inf`, `inf * 0` is
+    `nan`, and a single masked outlier would poison the whole batch.
     """
     mask = attention_mask.to(torch.bool)
     masked_inputs = torch.where(mask, inputs, torch.full_like(inputs, float("-inf")))
 
     s, _ = torch.max(masked_inputs, dim=dim, keepdim=True)
-    # Строка без единого доступного действия дала бы -inf - (-inf) = nan.
+    # A row with no available action would give -inf - (-inf) = nan.
     s = torch.where(torch.isfinite(s), s, torch.zeros_like(s))
 
     exp_x = torch.exp(masked_inputs - s)
@@ -36,11 +36,11 @@ def logsumexp(inputs: Tensor, attention_mask: Tensor, dim=1, keepdim=False):
 
 
 def masked_top_k_mask(logits: Tensor, available_mask: Tensor, top_k_actions: int) -> Tensor:
-    """Маска top-K, посчитанная **после** маски доступности.
+    """Top-K mask computed **after** the availability mask.
 
-    Порядок обязателен: `topk` по сырым логитам отдал бы места в пуле
-    недоступным действиям, и политика видела бы top-K, из которого часть
-    строк выбрасывается позже.
+    The order matters: `topk` over raw logits would give pool slots to
+    unavailable actions, and the policy would see a top-K from which some
+    rows are dropped later.
     """
     available = available_mask.to(torch.bool)
     masked = torch.where(
@@ -49,7 +49,7 @@ def masked_top_k_mask(logits: Tensor, available_mask: Tensor, top_k_actions: int
     top_k = min(masked.size(-1), top_k_actions)
     top_ids = torch.topk(masked, top_k, dim=-1).indices
     top_mask = torch.zeros_like(available).scatter_(-1, top_ids, True)
-    # `topk` вернёт замаскированные строки, если доступных меньше K.
+    # `topk` returns masked rows if fewer than K actions are available.
     return top_mask & available
 
 
@@ -60,11 +60,11 @@ def masked_soft_value(
     alpha,
     top_k_actions: int,
 ) -> tuple[Tensor, Tensor]:
-    """`V(s) = α·logsumexp(Q/α)` по top-K доступных действий, обе головы.
+    """`V(s) = α·logsumexp(Q/α)` over the top-K available actions, both heads.
 
-    Вынесено из `TextVNet`, потому что в линии A логиты уже посчитаны поиском
-    и перекодировать состояние ради `V` не нужно: реализация маскирования
-    обязана быть одна и та же в обоих путях.
+    Factored out of `TextVNet` because in line A the logits are already
+    computed by the search and the state need not be re-encoded for `V`; the
+    masking must be identical on both paths.
     """
     top_mask_1 = masked_top_k_mask(logits_1, available_mask, top_k_actions)
     top_mask_2 = masked_top_k_mask(logits_2, available_mask, top_k_actions)
@@ -83,13 +83,13 @@ def calibrated_soft_value(
     scale: Tensor,
     bias: Tensor,
 ) -> Tensor:
-    """V(s) по калиброванным головам: среднее двух α·logsumexp.
+    """V(s) over the calibrated heads: the mean of the two α·logsumexp.
 
-    Головы фитятся к таргету как `w·(2·q_i) + b`, поэтому и V обязан
-    считаться по тем же величинам — иначе таргет `r + γ·V` жил бы в другом
-    масштабе, и калибровка чинила бы одну сторону уравнения Беллмана,
-    ломая другую. Среднее, а не сумма: каждая калиброванная голова уже
-    оценивает полную ценность, сумма удвоила бы её.
+    The heads are fitted to the target as `w·(2·q_i) + b`, so V must use the
+    same quantities; otherwise the target `r + γ·V` would live on a different
+    scale and the calibration would fix one side of the Bellman equation while
+    breaking the other. Mean rather than sum: each calibrated head already
+    estimates the full value, and the sum would double it.
     """
     h1 = scale * (2 * logits_1) + bias
     h2 = scale * (2 * logits_2) + bias
@@ -98,14 +98,14 @@ def calibrated_soft_value(
 
 
 def normalized_boltzmann_probs(logits: Tensor, alpha, eps: float = 1e-6) -> Tensor:
-    """Boltzmann по пулу с нормировкой логитов на их собственный разброс.
+    """Boltzmann over the pool with logits normalized by their own spread.
 
-    При `normalize=false` масштаб логитов пропорционален ‖s‖, а ‖s‖ за 11
-    часов обучения упала с 20.68 до 3.21: с фиксированным α exploration на
-    старте задушен и сам разгоняется к середине рана — перевёрнутое
-    расписание, только через другую дверь. Деление на разброс по текущему
-    пулу делает α безразмерным, а вероятности — инвариантными к любому
-    положительному аффинному преобразованию логитов.
+    With `normalize=false` the logit scale is proportional to ‖s‖, which can
+    shrink several-fold during training (20.68 → 3.21 in one run). With a
+    fixed α, exploration is then suppressed early and grows mid-run, an
+    inverted schedule. Dividing by the spread of the current pool makes α
+    dimensionless and the probabilities invariant to any positive affine
+    transform of the logits.
     """
     centered = logits - logits.max(dim=-1, keepdim=True).values
     spread = logits.std(dim=-1, keepdim=True)
@@ -130,14 +130,14 @@ class TextQNet(nn.Module):
         super().__init__()
         self.state_embed = state_embed
         self.action_embed = action_embed
-        # Калибровочная голова: Q = w·(2·q_head_i) + b. Без неё старт линии A
-        # несовместим с наградой: логиты s·M ≈ ±20 при таргетах [0,1], и MSE
-        # дешевле всего глобально сжать и развернуть вектор состояния — на
-        # переобучении 100 примеров косинус к GTE дошёл до −0.25, а recall
-        # собственного пула до нуля. Скаляр w с стартом 1/‖s₀‖ снимает
-        # давление масштаба с весов башни; ранжирование поиска он не меняет
-        # (монотонность при w > 0). Параметры создаются только по запросу:
-        # чекпоинты линии B грузятся strict и не должны видеть новых ключей.
+        # Calibration head: Q = w·(2·q_head_i) + b. Without it, line A starts
+        # incompatible with the reward: logits s·M ≈ ±20 against targets in
+        # [0,1], and the cheapest way for MSE is to shrink and flip the state
+        # vector globally (overfitting 100 examples drove the cosine to GTE to
+        # −0.25 and own-pool recall to zero). A scalar w initialized at 1/‖s₀‖
+        # takes the scale pressure off the tower weights without changing the
+        # search ranking (monotone for w > 0). The parameters are created only
+        # on request: line B checkpoints load strictly and must not see new keys.
         if q_head is not None:
             self.q_scale = nn.Parameter(
                 torch.tensor(float(q_head["scale_init"]))
@@ -149,7 +149,7 @@ class TextQNet(nn.Module):
         return hasattr(self, "q_scale")
 
     def head_values(self, logits_1: Tensor, logits_2: Tensor) -> tuple[Tensor, Tensor]:
-        """Q-значения голов в масштабе награды: то, что сравнивается с таргетом."""
+        """Head Q-values on the reward scale: what is compared with the target."""
         if self.calibrated:
             return (
                 self.q_scale * (2 * logits_1) + self.q_bias,
@@ -158,15 +158,15 @@ class TextQNet(nn.Module):
         return 2 * logits_1, 2 * logits_2
 
     def forward(self, s: TextMemory, a):
-        """Q(s, a) двумя головами; `a` — либо текст действия, либо его вектор.
+        """Q(s, a) with two heads; `a` is either the action text or its vector.
 
-        Готовый вектор нужен линии A: действие там уже найдено поиском по
-        матрице `M`, его строка известна, и перекодировать текст значило бы
-        платить лишний проход BERT на каждый переход. Позиционный поворот при
-        этом выключен намеренно: `Q(s,a)` считался бы по вектору, повёрнутому
-        RoPE по позиции чанка в памяти, а поиск идёт по сырым строкам `M` — на
-        шагах с позицией больше нуля это разные числа, и тождество поиска и
-        оценки, на котором стоит вся линия, разошлось бы.
+        Line A passes a ready vector: the action was found by searching matrix
+        `M`, its row is known, and re-encoding the text would cost an extra BERT
+        pass per transition. The positional rotation is disabled on purpose:
+        `Q(s,a)` would use a vector rotated by RoPE according to the chunk's
+        position in memory, while the search uses raw rows of `M`; at positions
+        above zero these differ, breaking the search/evaluation identity that
+        line A relies on.
         """
         s_embed = self.state_embed(input_ids=s.input_ids, attention_mask=s.attention_mask)
         if isinstance(a, Tensor):
@@ -292,21 +292,22 @@ class TextRandomPolicy(nn.Module):
 
 
 class SearchBoltzmannPolicy(nn.Module):
-    """Exploration линии A: Boltzmann по своему пулу плюс ε-инъекция из GTE.
+    """Line A exploration: Boltzmann over the own pool plus ε-injection from GTE.
 
-    Логиты пула — это и есть скоры поиска (`Q(s,a) = s · M[idx]`), поэтому
-    политике не нужен отдельный проход: она ранжирует полной суммой обеих
-    голов, которую поиск уже посчитал.
+    The pool logits are the search scores themselves (`Q(s,a) = s · M[idx]`),
+    so the policy needs no extra pass: it ranks by the sum of both heads that
+    the search has already computed.
 
-    Модель видит только свой top-K и без инъекции не выйдет за границы
-    собственного ранжирования. С вероятностью ε действие берётся из GTE
-    top-K **текущего состояния**: тот же поиск с теми же масками, но запрос
-    кодирует замороженная action-башня. Её refresh-склонность утягиваться к
-    уже найденной сущности принята — это примесь, а не основной пул.
+    The model only sees its own top-K and without injection never leaves its
+    own ranking. With probability ε the action is taken from the GTE top-K of
+    the **current state**: the same search with the same masks, but the query
+    is encoded by the frozen action tower. Its tendency on refresh to drift
+    towards an already found entity is accepted, since this is an admixture,
+    not the main pool.
 
-    Случайной фазы у линии A нет: равномерный выбор из 21 млн строк не
-    исследование, а шум, и старая ручка `random=(step < 2 * learning_start)`
-    здесь не используется.
+    Line A has no random phase: uniform choice over 21M rows is noise, not
+    exploration, so the old `random=(step < 2 * learning_start)` knob is not
+    used here.
     """
 
     def __init__(
@@ -323,10 +324,11 @@ class SearchBoltzmannPolicy(nn.Module):
         if injection_sampling not in ("boltzmann", "uniform"):
             raise ValueError(f"Unknown injection sampling: {injection_sampling}")
         self.epsilon = epsilon
-        # Своя температура, а не α критика: α входит в `V = α·logsumexp(Q/α)`
-        # и меряется в единицах логитов, а здесь логиты уже поделены на свой
-        # разброс, и число безразмерно. Общая ручка означала бы, что смена
-        # мягкости TD-таргета молча меняет и агрессивность exploration.
+        # A separate temperature, not the critic's α: α enters
+        # `V = α·logsumexp(Q/α)` and is in logit units, whereas here the logits
+        # are already divided by their spread and the number is dimensionless.
+        # A shared knob would make TD-target softness silently change how
+        # aggressive exploration is.
         self.temperature = temperature
         self.injection_sampling = injection_sampling
 
@@ -339,10 +341,10 @@ class SearchBoltzmannPolicy(nn.Module):
         evaluate: bool = False,
         generator: torch.Generator | None = None,
     ) -> tuple[Tensor, Tensor]:
-        """Позиция выбранного действия в своём пуле и флаг инъекции.
+        """Position of the chosen action in its pool, and the injection flag.
 
-        Возвращает `(positions, injected)`: где `injected` истинно, позиция
-        индексирует `gte_scores`, иначе — `pool_scores`.
+        Returns `(positions, injected)`: where `injected` is true, the position
+        indexes `gte_scores`, otherwise `pool_scores`.
         """
         batch = pool_scores.shape[0]
         device = pool_scores.device

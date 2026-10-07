@@ -12,8 +12,8 @@ llm_answer:
   max_tokens: 1000
   thinking: false
   task: ${envs.task}
-  # Столько же, сколько у эвала (`--judge-max-tokens 100`): вердикт — одна
-  # строка, и запас в 500 токенов давал судье уехать в рассуждение.
+  # Same as the evaluation (`--judge-max-tokens 100`): the verdict is one
+  # line, and a 500-token budget let the judge drift into reasoning.
   judge_max_tokens: 100
 
 occ_status:

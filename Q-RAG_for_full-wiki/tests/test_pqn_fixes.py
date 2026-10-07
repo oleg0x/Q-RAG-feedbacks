@@ -1,7 +1,7 @@
-"""Юниты четырёх исправлений PQN, кроме маскирования (оно в test_search_line_a).
+"""Unit tests for the PQN fixes except masking (that is in test_search_line_a).
 
-Маска до `topk` проверяется там же, где остальная геометрия линии A; здесь —
-расписание α, ретраи vLLM и исключение невалидных переходов из лосса.
+The mask before `topk` is tested together with the rest of the line A geometry;
+here: the α schedule, vLLM retries and excluding invalid transitions from the loss.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from rl.feedback.llm_answer import LlmAnswer, VllmUnavailableError
 
 
 # --------------------------------------------------------------------------
-# Расписание alpha
+# Alpha schedule
 # --------------------------------------------------------------------------
 
 
@@ -42,7 +42,7 @@ def test_linear_schedule_requires_its_horizon() -> None:
 
 
 def test_schedule_is_read_from_the_config_and_defaults_to_constant() -> None:
-    """Без секции в конфиге α просто не меняется — но и от lr не зависит."""
+    """Without a config section α stays constant and does not depend on lr."""
     empty = OmegaConf.create({"pqn": {"hyperparams": {"alpha": 0.005}}})
     assert AlphaSchedule.from_config(empty, 0.005).kind == "constant"
 
@@ -66,12 +66,12 @@ def test_schedule_is_read_from_the_config_and_defaults_to_constant() -> None:
 
 
 # --------------------------------------------------------------------------
-# Ошибка vLLM не равна reward 0
+# A vLLM error is not reward 0
 # --------------------------------------------------------------------------
 
 
 class FlakyClient:
-    """Клиент, который падает первые `failures` раз, потом отвечает."""
+    """Client that fails the first `failures` times, then responds."""
 
     def __init__(self, failures: int, response: str = "Final answer: paris") -> None:
         self.failures = failures
@@ -86,7 +86,7 @@ class FlakyClient:
 
 
 def make_answer(retries: int = 3, stall_timeout=900.0) -> LlmAnswer:
-    """`LlmAnswer` без сети: настоящие клиенты подменяются сразу после сборки."""
+    """`LlmAnswer` without network: real clients are swapped out right after construction."""
     answer = LlmAnswer.__new__(LlmAnswer)
     answer.completed = False
     answer.never_terminate = True
@@ -132,7 +132,7 @@ def test_exhausted_retries_mark_the_transition_invalid_not_zero_reward() -> None
 
     reward = answer.reward(OBS, INFO, is_final=True)
 
-    # Награда всё ещё 0.0 как значение, но флаг говорит, что это не измерение.
+    # The reward value is still 0.0, but the flag says it is not a measurement.
     assert reward == 0.0
     assert answer.last_transition_valid is False
     assert answer.error_stats()["vllm_errors"] == 2
@@ -140,7 +140,7 @@ def test_exhausted_retries_mark_the_transition_invalid_not_zero_reward() -> None
 
 
 def test_a_silent_server_stops_training_instead_of_poisoning_it() -> None:
-    """Порог молчания превращает бесконечные ретраи в остановку с чекпоинтом."""
+    """The stall threshold turns endless retries into a stop with a checkpoint."""
     answer = make_answer(retries=5, stall_timeout=0.0)
     answer.vllm_client = FlakyClient(failures=99)
     answer.vllm_client_judge = FlakyClient(failures=0)
@@ -150,7 +150,7 @@ def test_a_silent_server_stops_training_instead_of_poisoning_it() -> None:
 
 
 def test_normalize_answer_saves_a_judge_call_on_punctuation() -> None:
-    """`normalize_answer` вместо `strip().lower()`: судья не нужен на пунктуации."""
+    """`normalize_answer`, not `strip().lower()`: no judge call on punctuation alone."""
     answer = make_answer()
     answer.vllm_client = FlakyClient(failures=0, response="Final answer: The Paris.")
     judge = FlakyClient(failures=0, response="Final answer: INCORRECT")
@@ -164,7 +164,7 @@ def test_normalize_answer_saves_a_judge_call_on_punctuation() -> None:
 
 
 def test_judge_fallback_is_kept_for_genuinely_different_answers() -> None:
-    """Фолбэк на судью остаётся: reward равен judge-метрике осознанно."""
+    """The judge fallback stays: reward equals the judge metric by design."""
     answer = make_answer()
     answer.vllm_client = FlakyClient(failures=0, response="Final answer: capital of France")
     judge = FlakyClient(failures=0, response="Final answer: CORRECT")
@@ -178,15 +178,15 @@ def test_judge_fallback_is_kept_for_genuinely_different_answers() -> None:
 
 
 # --------------------------------------------------------------------------
-# Невалидные переходы и лосс
+# Invalid transitions and the loss
 # --------------------------------------------------------------------------
 
 
 class ConstantCritic(torch.nn.Module):
-    """Критик, чьи логиты не зависят от входа: проверяется только лосс."""
+    """Critic whose logits do not depend on the input: only the loss is tested."""
 
-    # Контракт TextQNet: train_step сравнивает с таргетом калиброванные
-    # головы. Некалиброванный критик обязан отдавать прежние 2·q_i.
+    # TextQNet contract: train_step compares the calibrated heads with the
+    # target. An uncalibrated critic must return the legacy 2·q_i.
     calibrated = False
 
     def __init__(self, values: torch.Tensor) -> None:
@@ -212,12 +212,12 @@ def run_train_step(values, targets, valid):
 
 
 def test_invalid_transitions_do_not_reach_the_loss() -> None:
-    """Невалидный переход должен исчезнуть из лосса, а не прийти нулевой наградой."""
+    """An invalid transition must vanish from the loss, not arrive as a zero reward."""
     values = torch.tensor([0.2, 0.8, 0.5])
     targets = torch.tensor([1.0, 0.0, 0.5])
 
     masked = run_train_step(values, targets, torch.tensor([True, False, True]))
-    # Тот же батч без второго перехода вообще.
+    # The same batch without the second transition at all.
     without = run_train_step(
         torch.tensor([0.2, 0.5]), torch.tensor([1.0, 0.5]), torch.tensor([True, True])
     )
@@ -228,7 +228,7 @@ def test_invalid_transitions_do_not_reach_the_loss() -> None:
 
 
 def test_loss_without_a_mask_is_byte_identical_to_the_previous_behaviour() -> None:
-    """Линия B не должна заметить появления маски."""
+    """Line B must not notice that the mask was introduced."""
     values = torch.tensor([0.2, 0.8, 0.5])
     targets = torch.tensor([1.0, 0.0, 0.5])
 

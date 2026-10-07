@@ -1,15 +1,15 @@
-"""Офлайн-регрессии награды: новый код обязан повторить сохранённые числа.
+"""Offline reward regressions: the current code must reproduce saved numbers.
 
-vLLM здесь не нужен — предсказания ридера уже лежат в ранах, а проверяется
-именно то, что делает с ними награда. Два прогона:
+No vLLM is needed: the reader predictions are already stored in the runs, and
+what is tested is what the reward does with them. Two runs:
 
-* 7 405 предсказаний канонического ``2026-07-28-gte-only-steps6`` (у HotpotQA
-  ровно один допустимый ответ): EM обязан совпасть с сохранённым на каждой
-  записи — иначе контракт v2 сдвинул одноответный случай;
-* 3 610 предсказаний ``2026-08-07-sr1-noctx-nq`` с таблицей вариантов
-  ``runs/shared/searchr1/nq.jsonl``: ``em_alias`` обязан дать 11.97% при
-  среднем 1.80 варианта на пример. Ноль алиасов значил бы, что таблица не
-  подхватилась, а первая цифра совпала случайно.
+* 7,405 predictions of the canonical ``2026-07-28-gte-only-steps6`` run
+  (HotpotQA has exactly one accepted answer): EM must match the saved value on
+  every record, otherwise reward contract v2 changed the single-answer case;
+* 3,610 predictions of ``2026-08-07-sr1-noctx-nq`` with the alias table
+  ``runs/shared/searchr1/nq.jsonl``: ``em_alias`` must give 11.97% with
+  1.80 accepted answers per example on average. Zero aliases would mean the
+  table was not picked up and the first number matched by chance.
 """
 
 from __future__ import annotations
@@ -32,10 +32,10 @@ NQ_ALIASES = LAB / "runs" / "shared" / "searchr1" / "nq.jsonl"
 
 
 class EndlessJudge(FakeClient):
-    """Судья, который всегда говорит INCORRECT.
+    """Judge that always says INCORRECT.
 
-    Регрессия меряет EM, а не вердикты: канонический ответ судьи здесь нужен
-    только чтобы ветка `em_alias == 0` не ходила в сеть.
+    The regression measures EM, not verdicts: a canned judge reply is needed
+    only so that the `em_alias == 0` branch does not hit the network.
     """
 
     def chat_completion(self, **kwargs):
@@ -44,7 +44,7 @@ class EndlessJudge(FakeClient):
 
 
 def replay(record_prediction: str, variants: list[str]) -> dict:
-    """Прогнать награду на сохранённом предсказании, не трогая сеть."""
+    """Run the reward on a saved prediction without touching the network."""
     feedback = make_feedback([f"Final Answer: {record_prediction}"])
     feedback.vllm_client_judge = EndlessJudge([])
     feedback.reward(
@@ -55,7 +55,7 @@ def replay(record_prediction: str, variants: list[str]) -> dict:
     return feedback.get_metrics()
 
 
-@pytest.mark.skipif(not JUDGE_FILE.is_file(), reason=f"нет {JUDGE_FILE}")
+@pytest.mark.skipif(not JUDGE_FILE.is_file(), reason=f"missing {JUDGE_FILE}")
 def test_single_answer_em_matches_the_saved_run_on_every_record() -> None:
     records = json.loads(JUDGE_FILE.read_text(encoding="utf-8"))
     assert len(records) == 7405
@@ -65,14 +65,14 @@ def test_single_answer_em_matches_the_saved_run_on_every_record() -> None:
         metrics = replay(record["prediction"] or "", [str(record["answer"])])
         if metrics["EM"] != float(record["EM"]):
             mismatches.append((index, record.get("id")))
-        # Одноответный случай: alias-версия обязана совпасть с основной.
+        # Single-answer case: the alias version must equal the primary one.
         assert metrics["em_alias"] == metrics["EM"]
     assert not mismatches, mismatches[:5]
 
 
 @pytest.mark.skipif(
     not (NQ_RUN.is_file() and NQ_ALIASES.is_file()),
-    reason="нет сохранённого рана NQ или таблицы вариантов",
+    reason="saved NQ run or alias table is missing",
 )
 def test_alias_em_reproduces_the_saved_nq_metric() -> None:
     records = json.loads(NQ_RUN.read_text(encoding="utf-8"))
@@ -96,9 +96,9 @@ def test_alias_em_reproduces_the_saved_nq_metric() -> None:
         em_alias += metrics["em_alias"]
         em_plain += metrics["EM"]
 
-    # Сохранённое metrics.json того же рана: em 9.25%, em_alias 11.97%.
+    # The saved metrics.json of the same run: em 9.25%, em_alias 11.97%.
     assert em_alias / len(records) == pytest.approx(0.11966759, abs=5e-8)
     assert em_plain / len(records) == pytest.approx(0.09252078, abs=5e-8)
-    # Ноль алиасов дал бы ту же первую цифру случайно — проверяем, что
-    # таблица действительно подхватилась.
+    # With zero aliases the first number could match by chance, so check that
+    # the table was actually picked up.
     assert variant_count / len(records) == pytest.approx(1.7978, abs=1e-4)

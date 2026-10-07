@@ -1,14 +1,14 @@
-# Ридер без контекста вообще — нижняя граница шкалы.
+# Reader with no context at all: the lower bound of the scale.
 #
-# Производная от gte_only_steps6: берутся те же вопросы и тот же порядок, но
-# pred_texts вычищаются. Так строка гарантированно сопоставима с остальными
-# по составу выборки.
+# Derived from the gte_only_steps6 run: the same questions in the same order,
+# with pred_texts cleared, so the row is guaranteed to be comparable with the
+# others in sample composition.
 label: no retrieval
 slug: no-retrieval
 
-# Позиция строки в таблице RESULTS.md.
+# Row position in the results table.
 order: 10
-hypothesis: Сколько ридер отвечает вообще без контекста — нижняя граница.
+hypothesis: How well the reader answers with no context at all (lower bound).
 
 retrieve:
   kind: variant
@@ -16,7 +16,8 @@ retrieve:
   source_run: 2026-07-28-gte-only-steps6
 
 judge:
-  script: /home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py
+  script: src/answer_judge.py
+  contract: v1
   base_url: http://127.0.0.1:8010/v1
   answer_model: Qwen3-4B
   max_tokens: 1000

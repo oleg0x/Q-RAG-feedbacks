@@ -1,32 +1,31 @@
-# То же, что gte_only_steps6.yaml, но титул закрывается не первым взятым
-# чанком, а вторым: --max-chunks-per-title 2.
+# Same as gte_only_steps6.yaml, but a title is closed after its second chunk
+# rather than its first: --max-chunks-per-title 2.
 #
-# Зачем. Нарезка Wiki-18 идёт по 100 слов и не уважает границы предложений,
-# поэтому gold-предложение регулярно оказывается не в том чанке статьи,
-# который выше в ранжировании GTE: у 1 377 из 9 794 найденных титулов в
-# top-100 есть чанк лучше выбранного. Жёсткая дедупликация делает его
-# недостижимым навсегда. Квота в два чанка его открывает — но ценой одного
-# титула из бюджета, а вопросы двухоповые.
+# Wiki-18 is split into 100-word chunks that ignore sentence boundaries, so the
+# gold sentence is often not in the article's chunk ranked highest by GTE: for
+# 1,377 of 9,794 retrieved titles, top-100 contains a better chunk than the
+# selected one. Strict title deduplication makes it unreachable for good; a
+# quota of two chunks unlocks it, but costs one title from the budget, and the
+# questions are two-hop.
 #
-# Отсюда и бюджет: на steps 2 проверять нечего, два чанка, потраченные на
-# одну статью, для bridge-вопроса заведомо хуже. Смысл появляется там, где
-# бюджета хватает на оба gold-титула и ещё остаётся.
-label: GTE top-6, 2 чанка на титул
+# Hence the budget: at 2 steps there is nothing to test, since two chunks spent
+# on one article are clearly worse for a bridge question. The quota only makes
+# sense when the budget covers both gold titles with room to spare.
+label: GTE top-6, 2 chunks per title
 slug: gte-only-n2-steps6
 
 order: 46
 hypothesis: >-
-  Разрешение брать второй чанк той же статьи достаёт gold-предложения,
-  запертые дедупликацией, и это перевешивает потерю одного титула из
-  бюджета.
+  Allowing a second chunk from the same article recovers gold sentences locked
+  out by deduplication, and this outweighs losing one title from the budget.
 
 retrieve:
   kind: qrag
-  index_dir: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-qrag-jul21-best-raw
-  candidate_index_dir: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte
+  index_dir: /path/to/data/full-wiki/wiki18-qrag-jul21-best-raw
+  candidate_index_dir: /path/to/data/full-wiki/wiki18-gte
   candidate_backend: torch-cuda
-  qrag_repo: /home/a.anokhin/Judge/Q-RAG-feedback
-  input: /home/a.anokhin/Judge/datasets/data_sources/hotpotqa/hotpot_dev_fullwiki_v1.json
+  qrag_repo: /path/to/Q-RAG-feedback
+  input: /path/to/data/hotpotqa/hotpot_dev_fullwiki_v1.json
   cuda_visible_devices: "1"
   device: cuda:0
   model_dtype: float32
@@ -40,14 +39,15 @@ retrieve:
 
   dedupe_titles: true
 
-  # Единственное отличие от gte_only_steps6.yaml.
+  # The only difference from gte_only_steps6.yaml.
   max_chunks_per_title: 2
 
   trust_remote_code: true
   auto_prepare: false
 
 judge:
-  script: /home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py
+  script: src/answer_judge.py
+  contract: v1
   base_url: http://127.0.0.1:8010/v1
   answer_model: Qwen3-4B
   max_tokens: 1000

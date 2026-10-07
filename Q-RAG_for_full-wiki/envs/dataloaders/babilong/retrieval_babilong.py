@@ -142,7 +142,7 @@ class RetrievalBabiLong(Dataset):
             return self.num_sentences
 
     def get_partition_info(self):
-        # Получаем из task_dataset
+        # Taken from task_dataset
         task_ds = self.task_dataset
         if not hasattr(self.task_dataset,'get_partition_name'):
             task_ds = task_ds.task_dataset

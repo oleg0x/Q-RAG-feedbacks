@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
-"""Сводная таблица серии Search-R1: наши три руки против их опубликованной.
+"""Summary table of the Search-R1 series: our three arms against their published one.
 
-Отдельный скрипт, а не колонка в ``RESULTS.md``, по двум причинам. Витрина
-``runs_index.py`` строит по таблице на датасет и внутри датасета сравнивает
-раны между собой — а здесь нужно поперечное сечение: одна строка на датасет,
-семь датасетов рядом. И числа Search-R1 — внешние: они не считаются из наших
-ранов, а взяты из статьи, поэтому лежат константой с указанием источника.
+A separate script rather than a column in ``RESULTS.md``, for two reasons.
+``runs_index.py`` builds one table per dataset and compares runs within it,
+while here a cross-section is needed: one row per dataset, seven datasets
+side by side. And the Search-R1 numbers are external: they are not computed
+from our runs but taken from the paper, so they are kept as a constant with
+the source cited.
 
-    python src/searchr1_table.py                 напечатать таблицы
-    python src/searchr1_table.py --update-docs   вставить их в docs/searchr1.md
+    python src/searchr1_table.py                 print the tables
+    python src/searchr1_table.py --update-docs   also splice them into DOC
 """
 
 from __future__ import annotations
@@ -27,8 +28,8 @@ DOC = runlib.REPO / "docs" / "searchr1.md"
 TABLE_START = "<!-- BEGIN GENERATED TABLE -->"
 TABLE_END = "<!-- END GENERATED TABLE -->"
 
-# arXiv:2503.09516v5, Table 5, колонка Qwen2.5-7b-Base/Instruct. Взято
-# дословно; здесь константа, потому что из наших ранов это не считается.
+# arXiv:2503.09516v5, Table 5, column Qwen2.5-7b-Base/Instruct. Copied
+# verbatim; a constant because it cannot be computed from our runs.
 SEARCHR1: dict[str, dict[str, float]] = {
     "sr1_nq": {"direct": 0.134, "rag": 0.349, "search_r1": 0.480},
     "sr1_triviaqa": {"direct": 0.408, "rag": 0.585, "search_r1": 0.638},
@@ -39,15 +40,15 @@ SEARCHR1: dict[str, dict[str, float]] = {
     "sr1_bamboogle": {"direct": 0.120, "rag": 0.208, "search_r1": 0.432},
 }
 
-# Датасеты, которых не видел при обучении никто из двоих. Только на них обе
-# стороны в равном положении: Search-R1 учился на NQ+HotpotQA, линия A — на
+# Datasets that neither side saw in training. Only on these are both sides on
+# equal footing: Search-R1 was trained on NQ+HotpotQA, line A on
 # HotpotQA+2Wiki.
 NEUTRAL = ("sr1_triviaqa", "sr1_popqa", "sr1_musique", "sr1_bamboogle")
 
 ARMS = (
     ("noctx", "no retrieval"),
-    ("zeroshot", "Прямой поиск, zero-shot GTE, 6 шагов, N=2"),
-    ("best", "Прямой поиск, обученная башня, 6 шагов, N=2"),
+    ("zeroshot", "Direct search, zero-shot GTE, 6 steps, N=2"),
+    ("best", "Direct search, trained tower, 6 steps, N=2"),
 )
 
 SHORT = {
@@ -58,12 +59,12 @@ SHORT = {
 
 
 def collect() -> dict[str, dict[str, dict[str, Any]]]:
-    """Метрики серии: датасет → рука → metrics.json.
+    """Series metrics: dataset → arm → metrics.json.
 
-    Раны ищутся по метке из манифеста, а не по имени каталога: метка — то же,
-    чем они склеиваются в парные тесты ``runs_index.DEFAULT_PAIRS``, и
-    расхождение между двумя способами адресации было бы источником тихой
-    ошибки.
+    Runs are found by their manifest label, not by directory name: the label
+    is also what joins them into the paired tests of
+    ``runs_index.DEFAULT_PAIRS``, and a mismatch between two addressing
+    schemes would be a source of silent errors.
     """
     by_label = {label: arm for arm, label in ARMS}
     found: dict[str, dict[str, dict[str, Any]]] = {}
@@ -82,7 +83,7 @@ def collect() -> dict[str, dict[str, dict[str, Any]]]:
 
 
 def headline(metrics: dict[str, Any]) -> float | None:
-    """Главное число строки: EM максимумом по алиасам, как считает Search-R1."""
+    """Headline number of a row: EM as the max over aliases, as in Search-R1."""
     value = metrics.get("em_alias", metrics.get("em"))
     return None if value is None else float(value)
 
@@ -96,8 +97,8 @@ def cell(value: float | None, bold: bool = False) -> str:
 
 def render_main(found: dict[str, dict[str, dict[str, Any]]]) -> str:
     lines = [
-        "| Датасет | вопросов | без контекста | zero-shot | **обученная** "
-        "| Search-R1-base 7B | Δ к Search-R1 |",
+        "| Dataset | questions | no context | zero-shot | **trained** "
+        "| Search-R1-base 7B | Δ vs Search-R1 |",
         "|---|---:|---:|---:|---:|---:|---:|",
     ]
     for dataset, reference in SEARCHR1.items():
@@ -127,18 +128,18 @@ def average(found, datasets: Sequence[str], arm: str) -> float | None:
 
 
 def render_averages(found: dict[str, dict[str, dict[str, Any]]]) -> str:
-    """Средние по двум наборам: все семь и только нейтральные четыре.
+    """Averages over two sets: all seven and only the four neutral ones.
 
-    Среднее по семи сопоставимо с колонкой Avg. их таблицы, но обе стороны там
-    считают по своим in-domain. Среднее по четырём — единственное, где ни у
-    кого нет преимущества обучающего набора.
+    The average over seven is comparable with the Avg. column of their table,
+    but there both sides include their own in-domain sets. The average over
+    four is the only one where nobody has a training-set advantage.
     """
     groups = (
-        ("все семь", tuple(SEARCHR1)),
-        ("четыре нейтральных", NEUTRAL),
+        ("all seven", tuple(SEARCHR1)),
+        ("four neutral", NEUTRAL),
     )
     lines = [
-        "| Набор | без контекста | zero-shot | **обученная** | Search-R1-base 7B |",
+        "| Set | no context | zero-shot | **trained** | Search-R1-base 7B |",
         "|---|---:|---:|---:|---:|",
     ]
     for title, datasets in groups:
@@ -154,10 +155,10 @@ def render_averages(found: dict[str, dict[str, dict[str, Any]]]) -> str:
 
 
 def render_scale(found: dict[str, dict[str, dict[str, Any]]]) -> str:
-    """Их собственная шкала рядом с нашей: без ретривала → RAG → Search-R1."""
+    """Their own scale next to ours: no retrieval → RAG → Search-R1."""
     lines = [
-        "| Датасет | наш без контекста | их Direct Inference | наш zero-shot "
-        "| их RAG (3 пассажа) | наша обученная | их Search-R1 |",
+        "| Dataset | our no context | their Direct Inference | our zero-shot "
+        "| their RAG (3 passages) | our trained | their Search-R1 |",
         "|---|---:|---:|---:|---:|---:|---:|",
     ]
     for dataset, reference in SEARCHR1.items():
@@ -182,15 +183,15 @@ def build(found: dict[str, dict[str, dict[str, Any]]]) -> str:
         if arm not in found.get(dataset, {})
     ]
     blocks = [
-        "### Главная таблица\n\nEM по алиасам, в процентах. Определение EM то "
-        "же, что у Search-R1: максимум по всему `golden_answers`.\n\n"
+        "### Main table\n\nAlias EM, in percent. EM is defined as in "
+        "Search-R1: the maximum over all of `golden_answers`.\n\n"
         + render_main(found),
-        "### Средние\n\n" + render_averages(found),
-        "### Обе шкалы целиком\n\n" + render_scale(found),
+        "### Averages\n\n" + render_averages(found),
+        "### Both scales in full\n\n" + render_scale(found),
     ]
     if missing:
         blocks.append(
-            "> Неполные данные — нет ранов: " + ", ".join(missing)
+            "> Incomplete data, missing runs: " + ", ".join(missing)
         )
     return "\n\n".join(blocks)
 
@@ -199,11 +200,11 @@ def splice(table: str) -> None:
     text = DOC.read_text(encoding="utf-8")
     block = f"{TABLE_START}\n\n{table}\n\n{TABLE_END}"
     if TABLE_START not in text or TABLE_END not in text:
-        raise SystemExit(f"В {DOC.name} нет маркеров {TABLE_START} / {TABLE_END}")
+        raise SystemExit(f"{DOC.name} has no {TABLE_START} / {TABLE_END} markers")
     head, _, rest = text.partition(TABLE_START)
     _, _, tail = rest.partition(TABLE_END)
     DOC.write_text(head + block + tail, encoding="utf-8")
-    LOG.info("Обновлён %s", DOC.name)
+    LOG.info("Updated %s", DOC.name)
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -223,7 +224,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     found = collect()
     LOG.info(
-        "Найдено ранов: %d из %d",
+        "Runs found: %d of %d",
         sum(len(arms) for arms in found.values()),
         len(SEARCHR1) * len(ARMS),
     )

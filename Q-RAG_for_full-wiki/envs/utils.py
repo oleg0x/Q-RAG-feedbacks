@@ -18,15 +18,17 @@ Transition = namedtuple("Transition", [
 
 
 def wiki_style_chunk(title: str, passage: str) -> str:
-    '''Собрать чанк в формате Wiki-18: ``"Title"\\npassage``.
+    '''Build a chunk in the Wiki-18 format: ``"Title"\\npassage``.
 
-    Action-башня заморожена и совпадает с энкодером базы wiki18-gte, поэтому на
-    инференсе векторы кандидатов берутся прямо из шардов. Значит обучение обязано
-    подавать в неё ровно ту строку, из которой эти шарды собраны, иначе среда
-    учится на одном представлении документа, а работает с другим.
+    The action tower is frozen and equals the encoder of the wiki18-gte index,
+    so at inference candidate vectors are taken straight from the shards.
+    Training must therefore feed it exactly the string those shards were built
+    from; otherwise the environment learns on one document representation and
+    runs on another.
 
-    Кавычки внутри заголовка в корпусе удвоены по-CSV (``"Eric ""Big Daddy"" Nord"``),
-    а не экранированы по-JSON, и не-ASCII хранится как есть.
+    Quotes inside the title are doubled CSV-style in the corpus
+    (``"Eric ""Big Daddy"" Nord"``), not JSON-escaped, and non-ASCII is stored
+    as is.
     '''
     return f'"{title.replace(chr(34), chr(34) * 2)}"\n{passage}'
 

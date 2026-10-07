@@ -1,7 +1,7 @@
 max_steps: 6
 task: "musique"
-data_path: "/home/a.anokhin/Judge/output/musique/musique_candidate_train.jsonl"
-test_data_path: /home/a.anokhin/Judge/datasets/data_sources/musique
+data_path: "/path/to/workspace/output/musique/musique_candidate_train.jsonl"
+test_data_path: /path/to/data/musique
 sort_by_index: False
 
 positions_processor: none

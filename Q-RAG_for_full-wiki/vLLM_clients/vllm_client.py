@@ -11,10 +11,10 @@ from openai import AsyncOpenAI, OpenAI
 
 logger = logging.getLogger(__name__)
 
-# Разделитель чанков в контексте ридера. Пустая строка, а не перевод строки:
-# ровно так склеивает контекст эвал (`answer_judge_llms.py`), а награда
-# обучения обязана быть той же величиной, что и колонка в RESULTS.md. Разница
-# в один символ меняет токенизацию всего контекста и, значит, ответ ридера.
+# Chunk separator in the reader context. A blank line, not a single newline:
+# this is how evaluation (`answer_judge_llms.py`) joins the context, and the
+# training reward must be the same quantity as the evaluation metric. A one-char
+# difference changes the tokenization of the whole context and the reader's answer.
 CHUNK_SEPARATOR = "\n\n"
 
 

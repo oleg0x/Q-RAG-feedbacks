@@ -1,6 +1,6 @@
 {
-  "corpus": "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/data00/jiajie_jin/flashrag_indexes/wiki_dpr_100w/wiki_dump.jsonl",
-  "dataset": "/home/a.anokhin/Judge/datasets/data_sources/hotpotqa/hotpot_dev_fullwiki_v1.json",
+  "corpus": "/path/to/data/full-wiki/data00/jiajie_jin/flashrag_indexes/wiki_dpr_100w/wiki_dump.jsonl",
+  "dataset": "/path/to/data/hotpotqa/hotpot_dev_fullwiki_v1.json",
   "distinct_corpus_titles": 3232908,
   "examples": 7405,
   "gold_titles": 14810,

@@ -34,9 +34,9 @@ class AFeedbackModel(ABC):
         :return: a dict containing information about rewards and termination of the episode.
         """
         reward = self.reward(obs, info, is_final=truncated)
-        # `valid` отделяет «награда посчитана и равна нулю» от «награду
-        # посчитать не удалось». Модели, которые считают награду локально,
-        # флага не выставляют, и для них он всегда True.
+        # `valid` separates "reward computed and equal to zero" from "reward
+        # could not be computed". Models that compute the reward locally do
+        # not set the flag, so for them it is always True.
         valid = getattr(self, 'last_transition_valid', True)
 
         if isinstance(self.completed, bool):

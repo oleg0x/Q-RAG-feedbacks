@@ -1,18 +1,18 @@
-# Короткие имена для повседневных команд. Интерпретатор здесь один и тот же
-# везде: системный python не годится, в нём нет torch и faiss.
-PYTHON := /home/a.anokhin/venvs/gpu/bin/python
+# Shortcuts for everyday commands. Override the interpreter with
+# `make <target> PYTHON=/path/to/venv/bin/python`; it needs torch and faiss.
+PYTHON ?= python
 OFFLINE := HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
 
 .PHONY: help test report index dry experiment list show clean
 
 help:
-	@echo "make test                       pytest, ожидается 153 passed"
-	@echo "make report                     пересобрать runs/INDEX.md и RESULTS.md"
-	@echo "make index                      только runs/INDEX.md (без vLLM и метрик)"
-	@echo "make dry CFG=configs/x.yaml     показать команды эксперимента"
+	@echo "make test                       run pytest"
+	@echo "make report                     rebuild runs/INDEX.md and RESULTS.md"
+	@echo "make index                      rebuild runs/INDEX.md only (no vLLM, no metrics)"
+	@echo "make dry CFG=configs/x.yaml     print the experiment commands"
 	@echo "make experiment CFG=configs/x.yaml [TAG=...] [ARGS=...]"
-	@echo "make list                       все раны реестра"
-	@echo "make show RUN=<run_id>          сводка одного рана"
+	@echo "make list                       list all registered runs"
+	@echo "make show RUN=<run_id>          summary of one run"
 
 test:
 	$(OFFLINE) $(PYTHON) -m pytest
@@ -24,20 +24,20 @@ index:
 	$(PYTHON) src/runs_index.py --only-index
 
 dry:
-	@test -n "$(CFG)" || (echo "укажите CFG=configs/....yaml" && false)
+	@test -n "$(CFG)" || (echo "set CFG=configs/....yaml" && false)
 	$(PYTHON) exp.py run --config $(CFG) --dry-run
 
 experiment:
-	@test -n "$(CFG)" || (echo "укажите CFG=configs/....yaml" && false)
+	@test -n "$(CFG)" || (echo "set CFG=configs/....yaml" && false)
 	$(PYTHON) exp.py run --config $(CFG) $(if $(TAG),--tag $(TAG),) $(ARGS)
 
 list:
 	@$(PYTHON) exp.py list
 
 show:
-	@test -n "$(RUN)" || (echo "укажите RUN=<run_id>" && false)
+	@test -n "$(RUN)" || (echo "set RUN=<run_id>" && false)
 	@$(PYTHON) exp.py show $(RUN)
 
-# Кеши интерпретатора; артефакты ранов не трогаются никогда.
+# Interpreter caches only; run artifacts are never touched.
 clean:
 	rm -rf __pycache__ .pytest_cache

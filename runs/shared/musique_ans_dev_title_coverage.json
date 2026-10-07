@@ -1,6 +1,6 @@
 {
-  "corpus": "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/data00/jiajie_jin/flashrag_indexes/wiki_dpr_100w/wiki_dump.jsonl",
-  "dataset": "/home/a.anokhin/Judge/full-wiki/runs/shared/musique_ans_dev_hotpot_schema.jsonl",
+  "corpus": "/path/to/data/full-wiki/data00/jiajie_jin/flashrag_indexes/wiki_dpr_100w/wiki_dump.jsonl",
+  "dataset": "/path/to/repo/runs/shared/musique_ans_dev_hotpot_schema.jsonl",
   "distinct_corpus_titles": 3232908,
   "examples": 2417,
   "gold_titles": 6287,

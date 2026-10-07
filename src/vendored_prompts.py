@@ -1,8 +1,8 @@
-# Вендорная байт-копия ../Q-RAG-feedback/prompts_and_metrics/prompts.py.
-# Копия, а не свой текст: эвал обязан звать ридера и судью ровно теми
-# промптами, что и оригинал, но без обязательного соседнего репозитория.
-# Ниже этой шапки — оригинал без изменений; дрейф копии ловит
-# tests/test_vendored.py там, где оригинал доступен.
+# Vendored byte copy of ../Q-RAG-feedback/prompts_and_metrics/prompts.py.
+# A copy rather than our own text: evaluation must call the reader and the
+# judge with exactly the original prompts, without requiring the neighbouring
+# repository. Below this header the original is unchanged;
+# tests/test_vendored.py catches drift where the original is available.
 """System prompts shared by Q-ICL feedback and evaluation entrypoints."""
 
 sys_qa = """You are a precise question answering assistant.

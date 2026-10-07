@@ -1,9 +1,10 @@
-"""Юниты режима прямого поиска ``fullwiki_qrag.py search``.
+"""Unit tests for the direct-search mode ``fullwiki_qrag.py search``.
 
-Проверяется именно то, чем он отличается от ``retrieve``: пул задаёт сам
-поиск, маска применяется до ``topk``, квота считается по таблице титулов, а
-не по чтению корпуса, и запись остаётся того же формата, что у ``retrieve``.
-Матрица здесь игрушечная — настоящая весит 60 ГиБ и живёт на GPU.
+They cover exactly what distinguishes it from ``retrieve``: the search itself
+defines the pool, the mask is applied before ``topk``, the quota is counted
+from the title table rather than by reading the corpus, and the record keeps
+the ``retrieve`` format. The matrix here is a toy; the real one is 60 GiB and
+lives on the GPU.
 """
 
 from __future__ import annotations
@@ -15,9 +16,9 @@ import torch
 import fullwiki_qrag as retrieval
 
 
-# Три статьи: строки 0-1 — «Split», 2-3 — «Other», 4 — «Third». Wiki-18 режет
-# статьи по 100 слов, поэтому соседние строки одного титула — обычное дело, и
-# именно на них держится смысл квоты.
+# Three articles: rows 0-1 are "Split", 2-3 "Other", 4 "Third". Wiki-18 cuts
+# articles every 100 words, so neighbouring rows of one title are common, and
+# they are what the quota is about.
 TITLE_IDS = torch.tensor([0, 0, 1, 1, 2], dtype=torch.int32)
 MATRIX = torch.tensor(
     [
@@ -50,7 +51,7 @@ def make_retriever(
     max_chunks_per_title: int | None = 2,
     log_candidates: str = "none",
 ) -> retrieval.DirectSearchRetriever:
-    """Ретривер с подменённым кодировщиком: `states[step]` — вектор запроса."""
+    """Retriever with a stubbed encoder: `states[step]` is the query vector."""
     runner = object.__new__(retrieval.DirectSearchRetriever)
     runner.matrix = MATRIX
     runner.title_ids = TITLE_IDS
@@ -94,7 +95,7 @@ def test_taken_rows_are_masked_before_topk() -> None:
 
 
 def test_masked_rows_never_pad_the_pool_up_to_k() -> None:
-    """Пул из K строк обязан состоять из доступных, иначе лог кандидатов врёт."""
+    """A pool of K rows must contain only available rows, or the log lies."""
     runner = make_retriever([[1.0, 0.0]])
 
     with pytest.raises(RuntimeError, match="unmasked rows"):
@@ -111,7 +112,7 @@ def test_exhausted_titles_are_masked_before_topk() -> None:
 
 
 def test_quota_two_lets_the_second_chunk_of_an_article_through() -> None:
-    """Квота N=2, а не «титул уже взят»: gold-предложение часто во втором чанке."""
+    """Quota N=2, not "title already taken": gold often sits in the second chunk."""
     runner = make_retriever([[1.0, 0.0]])
 
     result = runner.retrieve(["question"], top_k=3, steps=3)
@@ -133,14 +134,14 @@ def test_quota_one_closes_the_article_on_the_first_chunk() -> None:
 def test_episode_never_repeats_a_row() -> None:
     runner = make_retriever([[1.0, 0.0]], max_chunks_per_title=None)
 
-    # Пул из одной строки: матрица игрушечная, а маска съедает её за пять шагов.
+    # A one-row pool: the matrix is a toy and the mask uses it up in five steps.
     result = runner.retrieve(["question"], top_k=1, steps=5)
 
     assert sorted(result[0]["pred_idx"]) == [0, 1, 2, 3, 4]
 
 
 def test_the_pool_follows_the_state_between_hops() -> None:
-    """Пул на каждом шаге считается заново — это и отличает прямой поиск."""
+    """The pool is recomputed at every step; this is what defines direct search."""
     runner = make_retriever([[1.0, 0.0], [0.0, 1.0]], max_chunks_per_title=None)
 
     result = runner.retrieve(["question"], top_k=3, steps=2)
@@ -177,10 +178,10 @@ def test_record_matches_the_retrieve_format() -> None:
 
 
 def test_direct_run_is_not_prefix_consistent_and_says_so() -> None:
-    """`build_eval_variants --context truncate` обязан отказаться от такого рана.
+    """`build_eval_variants --context truncate` must refuse such a run.
 
-    Каждый шаг переранжирует по обновлённому состоянию, поэтому двухшаговый
-    выбор не является префиксом шестишагового.
+    Every step re-ranks by the updated state, so the two-step selection is not
+    a prefix of the six-step one.
     """
     import build_eval_variants as variants
 
@@ -193,7 +194,7 @@ def test_direct_run_is_not_prefix_consistent_and_says_so() -> None:
 
 
 def test_matrix_manifest_validation_rejects_the_qrag_index(tmp_path) -> None:
-    """Матрицей действий служит нормированный GTE, а не Q-RAG-индекс."""
+    """The action matrix is the normalized GTE index, not the Q-RAG index."""
     import json
 
     (tmp_path / "manifest.json").write_text(

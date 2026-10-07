@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any
 
 
-DATA_ROOT = Path("/home/a.anokhin/Judge/datasets/data_sources")
+DATA_ROOT = Path("/path/to/data")
 TWOWIKI_DIR = DATA_ROOT / "2WikiMultiHopQA/data_ids_april7"
 DEFAULT_OUTPUT = Path("Q-RAG-pqn/runs/oracle_2wiki/eval_seed42.jsonl")
 

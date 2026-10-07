@@ -1,44 +1,46 @@
-# Линия A: прямой поиск по всем 21 015 324 чанкам Wiki-18.
-# Множество действий задаёт не датасет, а поиск s @ M.T, поэтому кандидатные
-# поля q0_s1-файла (candidates/judgements/betas/context) здесь игнорируются —
-# из примера берутся только question, answer и supporting_facts.
+# Line A: direct search over all 21,015,324 Wiki-18 chunks.
+# The action set comes from the search s @ M.T, not from the dataset, so the
+# candidate fields of the q0_s1 file (candidates/judgements/betas/context) are
+# ignored; only question, answer and supporting_facts are used.
 task: HotPotQA+2WikiMultihopQA
 
-# Шесть переходов на один вызов ридера вместо двух: горизонт из docs/training.md.
+# Six transitions per reader call instead of two: the line A horizon.
 max_steps: 6
-# K: размер пула, который отдаёт поиск. Потолок поднимается с 36.15% до ~47%.
+# K: size of the pool returned by search. Raises the ceiling from 36.15% to ~47%.
 top_k: 100
-# N: квота чанков на титул. Измерено: +0.55 п.п. у GTE, +0.35 у оракула.
+# N: per-title chunk quota. Measured: +0.55 pp for GTE, +0.35 for the oracle.
 max_chunks_per_title: 2
 separator: " [SEP] "
-# Ридер и судья — блокирующие HTTP-вызовы; столько же потоков, сколько сред.
+# The reader and judge are blocking HTTP calls; one thread per environment.
 feedback_workers: ${envs_parallel}
 
-# Сбор переходов в eval-режиме: dropout на state-башне ломает тождество
-# поиска и оценки прямо на сборе. Измерено на стоковых весах — косинус между
-# запросом обученной башни и стоковой GTE равен 1.0 в eval и 0.95 в train, то
-# есть пул нулевого шага уже не GTE-пул. К тому же eval-путь (fullwiki_qrag.py
-# search) шумит иначе, а train/eval shift — ровно то, что похоронило реранкер.
-# Градиентный шаг всё равно идёт в train-режиме, dropout регуляризует обучение.
+# Transitions are collected in eval mode: dropout in the state tower breaks the
+# search/value identity during collection. Measured on stock weights, the
+# cosine between the trained tower's query and stock GTE is 1.0 in eval and
+# 0.95 in train mode, so the step-0 pool is no longer the GTE pool. The eval
+# path (src/fullwiki_qrag.py search) also has different noise, and train/eval
+# shift is exactly what failed in the reranker setting. The gradient step still
+# runs in train mode, so dropout still regularizes training.
 rollout_train_mode: false
 
-# RoPE-поворот действий выключен: действия — сырые строки M. Значение `none`
-# выбирает EmbedderNone в algo.action_embed_dict, и тождество поиска и оценки
-# держится на всех шагах, а не только на первом.
+# RoPE rotation of actions is disabled: actions are raw rows of M. The value
+# `none` selects EmbedderNone in algo.action_embed_dict, so the search/value
+# identity holds at every step, not only the first.
 positions_processor: none
 positions_processor_dict:
   none:
     _target_: envs.text_env.AbsolutePositionProcessor
 
 exploration:
-  # Доля шагов, где действие берётся из GTE top-K текущего состояния. Без
-  # инъекции модель не выйдет за границы собственного ранжирования.
+  # Share of steps where the action is taken from the GTE top-K of the current
+  # state. Without injection the model cannot go beyond its own ranking.
   epsilon: 0.1
-  # Как выбирается действие внутри GTE-сотни. `boltzmann` — по тем же
-  # правилам, что и свой пул (GTE-предпочтение при той же температуре),
-  # `uniform` — равномерно по сотне.
+  # How the action is chosen within the GTE top-100. `boltzmann` uses the same
+  # rule as the own pool (GTE preference at the same temperature), `uniform`
+  # samples uniformly from the hundred.
   injection_sampling: boltzmann
-  # Температура безразмерна: логиты делятся на свой разброс по пулу.
+  # The temperature is dimensionless: logits are divided by their spread over
+  # the pool.
   temperature:
     kind: linear
     start: 1.0
@@ -47,27 +49,27 @@ exploration:
     total: ${steps_count}
 
 index:
-  shard_dir: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte/embedding-shards
+  shard_dir: /path/to/data/full-wiki/wiki18-gte/embedding-shards
   rows: 21015324
   dim: 768
 
-# Собирается скриптом full-wiki/build_title_table.py, в git не хранится.
-title_table: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte/corpus-title-ids.npy
-corpus: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/data00/jiajie_jin/flashrag_indexes/wiki_dpr_100w/wiki_dump.jsonl
-# Строится командой `python fullwiki_qrag.py prepare` в лаборатории full-wiki.
-offsets: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte/corpus-row-offsets.npy
+# Built by src/build_title_table.py; not stored in git.
+title_table: /path/to/data/full-wiki/wiki18-gte/corpus-title-ids.npy
+corpus: /path/to/data/full-wiki/data00/jiajie_jin/flashrag_indexes/wiki_dpr_100w/wiki_dump.jsonl
+# Built by `python src/fullwiki_qrag.py prepare`.
+offsets: /path/to/data/full-wiki/wiki18-gte/corpus-row-offsets.npy
 
-train_data_path: /home/a.anokhin/Judge/output/combined/hotpotqa_2wiki_candidate_train_q0_s1.jsonl
+train_data_path: /path/to/data/hotpotqa_2wiki_candidate_train_q0_s1.jsonl
 train_dataset:
   _target_: envs.CombinedCandidateDataset
   path: ${envs.train_data_path}
   split: train
   seed: ${seed}
 
-# Валидация: подмножество dev HotpotQA fullwiki. Утечка в итоговую таблицу
-# принята сознательно (docs/training.md), компенсация — публиковать цифры и
-# для model_last.
-eval_data_path: /home/a.anokhin/Judge/datasets/data_sources/hotpotqa
+# Validation: a subset of HotpotQA fullwiki dev. The resulting leak into the
+# final table is accepted deliberately; to compensate, numbers are also
+# reported for model_last.
+eval_data_path: /path/to/data/hotpotqa
 eval_dataset:
   _target_: envs.RetrievalHotPotQA
   path: ${envs.eval_data_path}

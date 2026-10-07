@@ -1,14 +1,14 @@
-"""Произвольный доступ к строкам корпуса Wiki-18 по таблице смещений.
+"""Random access to Wiki-18 corpus rows through an offset table.
 
-Корпус — JSONL на 14 ГБ, а нужны из него на каждом шаге ровно те чанки,
-которые выбрала политика. Таблица смещений ``uint64[rows + 1]`` строится
-командой ``python fullwiki_qrag.py prepare`` в лаборатории full-wiki; здесь
-она только читается.
+The corpus is a 14 GB JSONL, but each step needs only the chunks the policy
+selected. The ``uint64[rows + 1]`` offset table is built by
+``python src/fullwiki_qrag.py prepare`` (evaluation code at the repository
+root); here it is only read.
 
-Дублирование ``WikiCorpus`` из ``full-wiki/fullwiki_qrag.py`` намеренное:
-лаборатория и код обучения — разные репозитории с разными зависимостями, и
-импорт через границу привязал бы обучение к путям лаборатории. Формат
-артефакта общий, и это единственное, о чём нужно договариваться.
+``WikiCorpus`` from ``src/fullwiki_qrag.py`` is duplicated on purpose: the
+evaluation code and the training code have different dependencies, and an
+import across that boundary would tie training to the evaluation code's paths.
+Only the artifact format is shared.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ import numpy as np
 
 
 class CorpusReader:
-    """Чтение строк корпуса по номеру, соответствующему строке матрицы."""
+    """Reads corpus rows by number; the number matches the matrix row."""
 
     def __init__(
         self,
@@ -37,7 +37,7 @@ class CorpusReader:
         if not offsets_path.is_file():
             raise FileNotFoundError(
                 f"Corpus offsets not found: {offsets_path}. "
-                "Build them with `python fullwiki_qrag.py prepare`."
+                "Build them with `python src/fullwiki_qrag.py prepare`."
             )
         self.offsets = np.load(offsets_path, mmap_mode="r", allow_pickle=False)
         if self.offsets.ndim != 1:
@@ -76,14 +76,14 @@ class CorpusReader:
             raise IndexError(f"Corpus row outside range: {row_id}")
         start = int(self.offsets[row_id])
         end = int(self.offsets[row_id + 1])
-        # `pread` вместо `seek` + `read`: чанки читает пул потоков, а пара
-        # «переместить курсор, прочитать» на общем дескрипторе не атомарна —
-        # два потока подряд отдают строку не того номера, который просили.
+        # `pread` instead of `seek` + `read`: chunks are read by a thread pool,
+        # and seek-then-read on a shared descriptor is not atomic, so two
+        # threads can get each other's rows.
         raw = os.pread(self._descriptor(), end - start, start)
         item = json.loads(raw)
-        # Строка матрицы обязана совпадать с ``id`` записи: индекс собран по
-        # номеру строки JSONL, и рассинхронизация здесь означает, что
-        # обучение читает не тот текст, который кодировал энкодер.
+        # The matrix row must equal the record ``id``: the index was built by
+        # JSONL line number, so a mismatch means training reads different text
+        # from what the encoder embedded.
         if str(item.get("id")) != str(row_id):
             raise RuntimeError(
                 f"Corpus row/id mismatch: row={row_id}, id={item.get('id')!r}"

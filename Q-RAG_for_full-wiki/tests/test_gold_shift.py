@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from rl.feedback.gold_shift_feedback import GoldShiftFeedback
 
 # Path to raw HotpotQA train data
-DATA_FILE = "/home/a.anokhin/Judge/datasets/data_sources/hotpotqa/hotpot_train_v1.1.json"
+DATA_FILE = "/path/to/data/hotpotqa/hotpot_train_v1.1.json"
 N_SAMPLES = 5
 
 

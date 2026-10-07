@@ -1,7 +1,7 @@
-"""Юниты линии A: маскирование, квота, тождество Q и поиска, батчевый rollout.
+"""Line A unit tests: masking, quota, the Q/search identity, batched rollout.
 
-Всё на синтетических матрицах и CPU. Это лестница фазы 2, ступень 1: она
-обязана ловить ошибки до того, как за них заплатят часами GPU.
+Everything runs on synthetic matrices and CPU. These tests must catch bugs
+before they cost hours of GPU time.
 """
 
 from __future__ import annotations
@@ -43,21 +43,21 @@ def toy_matrix(rows: int = 24, dim: int = DIM, seed: int = 3) -> torch.Tensor:
 
 
 def toy_titles(rows: int = 24, chunks_per_title: int = 3) -> np.ndarray:
-    """Каждая статья занимает подряд идущие строки, как в Wiki-18."""
+    """Each article occupies consecutive rows, as in Wiki-18."""
     return np.arange(rows, dtype=np.int32) // chunks_per_title
 
 
 # --------------------------------------------------------------------------
-# Поиск и маскирование
+# Search and masking
 # --------------------------------------------------------------------------
 
 
 def test_search_reproduces_cosine_ranking_on_a_toy_matrix() -> None:
-    """Ранжирование поиска обязано совпасть с ранжированием по косинусу.
+    """Search ranking must match the cosine ranking.
 
-    Строки матрицы нормированы, поэтому скалярное произведение и косинус
-    задают один и тот же порядок; расхождение означало бы ошибку в самом
-    поиске, а не в геометрии.
+    Matrix rows are normalized, so the dot product and cosine give the same
+    order; a mismatch would mean a bug in the search itself, not in the
+    geometry.
     """
     vectors = torch.nn.functional.normalize(toy_matrix(), dim=-1)
     index = ActionIndex(vectors)
@@ -75,7 +75,7 @@ def test_search_reproduces_cosine_ranking_on_a_toy_matrix() -> None:
 
 
 def test_mask_is_applied_before_topk() -> None:
-    """Замаскированная строка не занимает места в пуле, а исчезает из него."""
+    """A masked row does not take a slot in the pool; it disappears from it."""
     vectors = toy_matrix()
     index = ActionIndex(vectors, toy_titles())
     query = vectors[0:1].clone()
@@ -103,7 +103,7 @@ def test_title_quota_removes_every_chunk_of_an_exhausted_article() -> None:
 
 
 def test_search_refuses_to_return_masked_rows_as_padding() -> None:
-    """Если доступных строк меньше K, тихо добить пул замаскированными нельзя."""
+    """With fewer than K available rows, the pool must not be silently padded with masked ones."""
     vectors = toy_matrix(rows=6)
     index = ActionIndex(vectors, toy_titles(rows=6, chunks_per_title=2))
 
@@ -112,17 +112,17 @@ def test_search_refuses_to_return_masked_rows_as_padding() -> None:
 
 
 # --------------------------------------------------------------------------
-# V(s) и маска до topk
+# V(s) and the mask before topk
 # --------------------------------------------------------------------------
 
 
 def test_unavailable_global_argmax_does_not_leak_into_v() -> None:
-    """Главный дефект PQN: V схлопывалась в Q недоступного действия.
+    """The key PQN bug: V collapsed into the Q of an unavailable action.
 
-    Логит недоступного действия здесь на порядок больше всех остальных. При
-    сдвиге по глобальному максимуму и alpha=0.005 экспоненты доступных
-    действий обнулялись, и V выходила равной `max − alpha·log(...)`, то есть
-    оценке действия, которое взять нельзя.
+    The logit of the unavailable action here is an order of magnitude larger
+    than the others. With a shift by the global maximum and alpha=0.005 the
+    exponents of the available actions underflowed to zero, and V came out as
+    `max − alpha·log(...)`, i.e. the value of an action that cannot be taken.
     """
     alpha = 0.005
     logits = torch.tensor([[1.0, 2.0, 50.0]])
@@ -161,12 +161,12 @@ def test_top_k_actions_limits_the_pool_v_sees() -> None:
 
 
 # --------------------------------------------------------------------------
-# Q(s, a) на готовых векторах
+# Q(s, a) on precomputed vectors
 # --------------------------------------------------------------------------
 
 
 def test_q_on_ready_vectors_equals_dot_products_of_halves() -> None:
-    """`TextQNet` с готовым вектором обязан считать ровно то же, что поиск."""
+    """`TextQNet` with a precomputed vector must compute exactly what search does."""
     torch.manual_seed(0)
     tower = ToyTower(dim=DIM, seed=5)
     critic = TextQNet(tower, action_embed=None)
@@ -184,12 +184,12 @@ def test_q_on_ready_vectors_equals_dot_products_of_halves() -> None:
     half = DIM // 2
     assert torch.allclose(logits_1, (embeds[:, :half] * actions[:, :half]).sum(-1))
     assert torch.allclose(logits_2, (embeds[:, half:] * actions[:, half:]).sum(-1))
-    # Тождество поиска и оценки: полная сумма голов — это скор поиска.
+    # Search/value identity: the full sum of the heads is the search score.
     assert torch.allclose(logits_1 + logits_2, (embeds * actions).sum(-1), atol=1e-6)
 
 
 def test_two_heads_are_kept_and_are_not_equal() -> None:
-    """Двухголовость не «упрощается»: лосс фитит половины по отдельности."""
+    """The two heads are not "simplified" away: the loss fits each half separately."""
     tower = ToyTower(dim=DIM, seed=5)
     critic = TextQNet(tower, action_embed=None)
     tokenizer = ToyTokenizer()
@@ -208,10 +208,11 @@ def test_two_heads_are_kept_and_are_not_equal() -> None:
 
 
 def test_boltzmann_probabilities_are_scale_invariant() -> None:
-    """α безразмерна: умножение логитов на константу ничего не меняет.
+    """α is dimensionless: multiplying the logits by a constant changes nothing.
 
-    Это и есть смысл нормировки на разброс: ‖s‖ за 11 часов обучения упала
-    в шесть раз, и с фиксированным α exploration был бы задушен на старте.
+    This is the point of normalizing by the spread: ‖s‖ fell sixfold over 11
+    hours of training, and with a fixed α exploration would be stifled at the
+    start.
     """
     logits = torch.tensor([[1.0, 2.0, 3.0, 2.5], [0.0, -1.0, 4.0, 1.0]])
 
@@ -220,7 +221,7 @@ def test_boltzmann_probabilities_are_scale_invariant() -> None:
         assert torch.allclose(
             normalized_boltzmann_probs(logits * factor, alpha=0.7), base, atol=1e-5
         )
-    # Сдвиг тоже безразличен: пул сравнивается сам с собой.
+    # A shift does not matter either: the pool is compared with itself.
     assert torch.allclose(
         normalized_boltzmann_probs(logits + 17.0, alpha=0.7), base, atol=1e-5
     )
@@ -250,7 +251,7 @@ def test_epsilon_one_always_takes_the_gte_pool() -> None:
 
 
 # --------------------------------------------------------------------------
-# Среда и батчевый rollout
+# Environment and batched rollout
 # --------------------------------------------------------------------------
 
 
@@ -292,7 +293,7 @@ def make_samples() -> list[dict]:
             "answer": "alpha",
             "supporting_facts": [["Alpha", 0], ["Beta", 1]],
             "source": "toy",
-            # Кандидатные поля обязаны игнорироваться средой прямого поиска.
+            # The direct-search environment must ignore the candidate fields.
             "candidates": [[0, 1]],
             "judgements": [1],
             "betas": [0.5],
@@ -359,15 +360,15 @@ def test_dataset_adapter_keeps_only_question_answer_and_supporting_facts(tmp_pat
     }
     assert sample["gold_titles"] == ["Alpha", "Beta"]
     assert sample["gold_titles_covered"] is True
-    # У второго примера один gold-титул отсутствует в корпусе — это и есть
-    # флаг, который отделяет решаемые эпизоды от нерешаемых.
+    # The second example has one gold title missing from the corpus: this is
+    # the flag that separates solvable episodes from unsolvable ones.
     assert dataset[1]["gold_titles_covered"] is False
     assert dataset[1]["gold_title_ids"] == [2]
 
 
 def test_episode_never_repeats_a_row_and_respects_the_quota(tmp_path: Path) -> None:
-    # Эпизоды намеренно не доходят до конца: после reset счётчики очищаются,
-    # и проверять было бы нечего.
+    # Episodes deliberately do not finish: reset clears the counters, and
+    # there would be nothing left to check.
     parallel, dataset = make_parallel(tmp_path, envs_parallel=2, max_steps=6)
     agent = make_agent()
     for env in parallel.envs:
@@ -383,11 +384,11 @@ def test_episode_never_repeats_a_row_and_respects_the_quota(tmp_path: Path) -> N
 
 
 def test_batched_rollout_matches_the_stepwise_one(tmp_path: Path) -> None:
-    """Батч обязателен по стоимости, но не должен менять сами переходы."""
+    """Batching is required for cost but must not change the transitions."""
     agent = make_agent()
 
-    # Шагов меньше, чем `max_steps`: эпизоды не завершаются, и сравнение не
-    # зависит от того, какой пример среда вытянет из датасета следующим.
+    # Fewer steps than `max_steps`: episodes do not finish, so the comparison
+    # does not depend on which example the env draws from the dataset next.
     batched, dataset = make_parallel(tmp_path / "batched", envs_parallel=3, max_steps=5)
     for index, env in enumerate(batched.envs):
         env.reset(dataset[index % len(dataset)])
@@ -423,22 +424,22 @@ def test_rollout_batch_shapes_line_up_with_the_pqn_update(tmp_path: Path) -> Non
     assert num_envs == 2
     assert batch.not_done.shape == (num_envs, num_steps)
     assert batch.valid.shape == (num_envs, num_steps)
-    # `compute_returns` бутстрапится из V(s_{t+1}), поэтому значений на одно
-    # больше, чем переходов.
+    # `compute_returns` bootstraps from V(s_{t+1}), so there is one more value
+    # than transitions.
     assert batch.q_values.shape == (num_envs, num_steps + 1)
     assert batch.action.shape == (num_envs * num_steps, DIM)
     assert len(batch.state.input_ids) == num_envs * num_steps
-    assert returns  # эпизоды длиной 3 шага успели завершиться
+    assert returns  # 3-step episodes have had time to finish
     assert stats["explore/injected_share"] == 0.0
     assert 0.0 <= stats["pool/gold_title_recall"] <= 1.0
     parallel.close()
 
 
 def test_rollout_batch_feeds_pqn_update_without_reshaping(tmp_path: Path) -> None:
-    """Шов между батчевым rollout и `PQN.update`: формы и порядок сходятся.
+    """The seam between batched rollout and `PQN.update`: shapes and order match.
 
-    Действия здесь — тензор готовых векторов, а не `TextMemoryItem`, поэтому
-    критик не перекодирует текст и не крутит RoPE.
+    Actions here are a tensor of precomputed vectors, not `TextMemoryItem`, so
+    the critic neither re-encodes text nor applies RoPE.
     """
     from rl.agents.pqn import PQN, AlphaSchedule
 
@@ -449,8 +450,8 @@ def test_rollout_batch_feeds_pqn_update_without_reshaping(tmp_path: Path) -> Non
     parallel.close()
 
     class VectorCritic(torch.nn.Module):
-        # Контракт TextQNet: train_step сравнивает с таргетом калиброванные
-        # головы; некалиброванный критик отдаёт прежние 2·q_i.
+        # TextQNet contract: train_step compares calibrated heads with the
+        # target; an uncalibrated critic returns the old 2·q_i.
         calibrated = False
 
         def __init__(self) -> None:
@@ -458,7 +459,7 @@ def test_rollout_batch_feeds_pqn_update_without_reshaping(tmp_path: Path) -> Non
             self.weight = torch.nn.Parameter(torch.ones(DIM))
 
         def forward(self, state, action):
-            # Готовый вектор, а не TextMemoryItem: перекодировать нечего.
+            # A precomputed vector, not a TextMemoryItem: nothing to re-encode.
             assert isinstance(action, torch.Tensor)
             assert action.shape[-1] == DIM
             scores = (action * self.weight).sum(-1)
@@ -501,7 +502,7 @@ def test_rollout_batch_feeds_pqn_update_without_reshaping(tmp_path: Path) -> Non
     )
 
     assert np.isfinite(loss)
-    # Один оптимизационный шаг сдвинул α по расписанию, а не по learning rate.
+    # One optimizer step moved α along its schedule, not with the learning rate.
     assert agent._optim_step == 1
     assert agent.alpha == pytest.approx(AlphaSchedule(
         start=0.01, kind="linear", final=0.001, total=10
@@ -509,7 +510,7 @@ def test_rollout_batch_feeds_pqn_update_without_reshaping(tmp_path: Path) -> Non
 
 
 def test_failed_reward_invalidates_the_whole_episode(tmp_path: Path) -> None:
-    """Ошибка vLLM — не «reward 0»: эпизод целиком выпадает из лосса."""
+    """A vLLM error is not "reward 0": the whole episode is dropped from the loss."""
     table = make_title_table()
     dataset = SearchDatasetAdapter(make_samples(), table)
     template = DenseSearchEnv(

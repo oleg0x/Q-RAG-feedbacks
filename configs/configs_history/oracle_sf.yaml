@@ -1,27 +1,28 @@
-# Потолок ридера: gold-предложения вместо ретривала.
+# Reader ceiling: gold supporting sentences instead of retrieval.
 #
-# Источник контекста — distractor-файл, а не fullwiki. Поле `context` в
-# hotpot_dev_fullwiki_v1.json содержит не gold-абзацы, а top-10 исходного
-# ретривера HotpotQA: у 5 316 из 7 405 примеров там нет ни одного gold-титула.
-# Подробности — docs/pipeline.md §4b.
+# The context comes from the distractor file, not fullwiki: the `context` field
+# of hotpot_dev_fullwiki_v1.json holds the top-10 of the original HotpotQA
+# retriever rather than gold paragraphs, and 5,316 of 7,405 examples there
+# contain no gold title.
 #
-# Oracle измеряет идеальный ретривал по HotpotQA, а не по Wiki-18, поэтому
-# «доля потолка» к нему неприменима.
+# The oracle measures ideal retrieval over HotpotQA, not Wiki-18, so the
+# "fraction of the ceiling" does not apply to it.
 label: oracle (gold sentences)
 slug: oracle-sf
 
-# Позиция строки в таблице RESULTS.md.
+# Row position in the results table.
 order: 80
-hypothesis: Потолок ридера при идеальном ретривале по HotpotQA.
+hypothesis: Reader ceiling under ideal retrieval over HotpotQA.
 
 retrieve:
   kind: variant
   context: oracle
   source_run: 2026-07-28-gte-only-steps6
-  oracle_source: /home/a.anokhin/Judge/datasets/data_sources/hotpotqa/hotpot_dev_distractor_v1.json
+  oracle_source: /path/to/data/hotpotqa/hotpot_dev_distractor_v1.json
 
 judge:
-  script: /home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py
+  script: src/answer_judge.py
+  contract: v1
   base_url: http://127.0.0.1:8010/v1
   answer_model: Qwen3-4B
   max_tokens: 1000

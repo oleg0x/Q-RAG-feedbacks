@@ -1,23 +1,24 @@
 #!/usr/bin/env python3
-"""Собрать таблицу титулов Wiki-18: строка индекса → идентификатор статьи.
+"""Build the Wiki-18 title table: index row -> article identifier.
 
-Прямой поиск по всем 21 015 324 чанкам маскирует кандидатов **до** ``topk``:
-запрос содержит текст уже выбранного чанка, поэтому его соседи по статье
-оказываются ближайшими соседями запроса и без маски забивают пул целиком.
-Квота ``N=2`` чанка на титул означает, что на каждом шаге нужно знать титул
-любой из 21 млн строк. Читать ради этого сто строк корпуса на шаг нельзя —
-корпус лежит на диске и весит 14 ГБ, — поэтому титулы раскладываются один раз
-в ``int32``-таблицу на 84 МБ, которая целиком живёт в памяти процесса.
+Direct search over all 21,015,324 chunks masks candidates **before** ``topk``:
+the query contains the text of already selected chunks, so their neighbours
+from the same article become the query's nearest neighbours and would
+otherwise fill the whole pool. A per-title quota of ``N=2`` chunks means the
+title of any of the 21M rows must be known at every step. Reading a hundred
+corpus rows per step for this is not an option (the corpus is a 14 GB file on
+disk), so titles are laid out once into an 84 MB ``int32`` table that lives
+entirely in process memory.
 
-Артефакты (в git не коммитятся, пересобираются этим скриптом):
+Artifacts (not committed to git, rebuilt by this script):
 
-* ``<output>.npy`` — ``int32[rows]``, идентификатор титула для каждой строки;
-* ``<output>.titles.jsonl.gz`` — сами титулы, строка ``i`` это ``title_id == i``
-  (по одной JSON-строке на титул: титул может содержать что угодно, включая
-  перевод строки, и сырой текст здесь развалил бы файл);
-* ``<output>.json`` — метаданные: идентичность корпуса, число строк и титулов.
+* ``<output>.npy``: ``int32[rows]``, the title identifier of every row;
+* ``<output>.titles.jsonl.gz``: the titles themselves, line ``i`` is
+  ``title_id == i`` (one JSON string per title: a title may contain anything,
+  including a newline, and raw text would break the file);
+* ``<output>.json``: metadata: corpus identity, number of rows and titles.
 
-Пример:
+Example:
 
     python src/build_title_table.py \
       --index-dir datasets/data_sources/full-wiki/wiki18-gte \
@@ -46,7 +47,7 @@ LOG = logging.getLogger("build-title-table")
 MANIFEST_FILE = "manifest.json"
 CONTENTS_KEY = b'"contents": "'
 ESCAPED_NEWLINE = b"\\n"
-# int32 хватает: титулов в Wiki-18 около 5.2 млн, а знаковый предел 2.1 млрд.
+# int32 is enough: Wiki-18 has about 5.2M titles and the signed limit is 2.1B.
 TITLE_ID_DTYPE = np.int32
 
 
@@ -59,10 +60,10 @@ def metadata_path(output: Path) -> Path:
 
 
 def corpus_stat_identity(corpus: Path) -> dict[str, Any]:
-    """Ровно та же идентичность корпуса, что у таблицы смещений строк.
+    """Exactly the same corpus identity as the row-offset table uses.
 
-    Совпадение полей позволяет проверять обе таблицы одинаково и ловить
-    подмену корпуса, а не только его усечение.
+    Matching fields let both tables be checked the same way and catch a
+    replaced corpus, not just a truncated one.
     """
     stat = corpus.stat()
     return {
@@ -73,11 +74,11 @@ def corpus_stat_identity(corpus: Path) -> dict[str, Any]:
 
 
 def row_title(line: bytes, corpus: Path, row: int) -> str:
-    """Достать титул из сырой строки JSONL, не разбирая её целиком.
+    """Extract the title from a raw JSONL line without parsing all of it.
 
-    Полный ``json.loads`` на 21 млн строк стоит дороже самого прохода по
-    диску, а нужен из всей записи один титул — до первого экранированного
-    перевода строки в поле ``contents``.
+    A full ``json.loads`` over 21M rows costs more than the disk pass itself,
+    and only the title is needed: the part of ``contents`` up to the first
+    escaped newline.
     """
     start = line.find(CONTENTS_KEY)
     if start < 0:
@@ -95,7 +96,7 @@ def scan_corpus(
     table: np.ndarray,
     progress_every: int,
 ) -> list[str]:
-    """Один потоковый проход: заполнить ``table`` и вернуть титулы по id."""
+    """One streaming pass: fill ``table`` and return the titles by id."""
     title_ids: dict[str, int] = {}
     titles: list[str] = []
     started = time.monotonic()
@@ -145,11 +146,11 @@ def verify_table(
     samples: int,
     seed: int,
 ) -> int:
-    """Сверить случайные строки таблицы с полным JSON-разбором корпуса.
+    """Check random table rows against a full JSON parse of the corpus.
 
-    Байтовый парсер титула быстрее полного разбора на порядок, и именно
-    поэтому его нельзя принимать на веру: выборка читается второй раз и
-    сравнивается с результатом ``json.loads`` всей записи.
+    The byte-level title parser is an order of magnitude faster than a full
+    parse, which is exactly why it cannot be taken on trust: a sample is read
+    a second time and compared with ``json.loads`` of the whole record.
     """
     if samples <= 0:
         return 0
@@ -235,8 +236,8 @@ def build_title_table(
         atomic_write_json(metadata_path(output), metadata)
         os.replace(temporary, output)
     finally:
-        # Недостроенная таблица не должна выглядеть готовой: имя временного
-        # файла уникально по pid, поэтому его можно спокойно удалить.
+        # An unfinished table must not look complete: the temporary file name
+        # is unique per pid, so it is safe to delete.
         if temporary.exists():
             temporary.unlink()
     LOG.info(
@@ -264,7 +265,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--index-dir",
         type=Path,
         default=None,
-        help="каталог индекса: из его манифеста берутся корпус и число строк",
+        help="index directory: the corpus and row count come from its manifest",
     )
     parser.add_argument("--corpus", type=Path, default=None)
     parser.add_argument("--rows", type=int, default=None)

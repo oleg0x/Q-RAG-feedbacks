@@ -26,7 +26,7 @@ import json
 
 import gig_common as G
 
-DATA_ROOT = "/home/a.anokhin/Judge/datasets/data_sources"
+DATA_ROOT = "/path/to/data"
 HOTPOT_RAW = [
     f"{DATA_ROOT}/hotpotqa/hotpot_train_v1.1.json",
     f"{DATA_ROOT}/hotpotqa/hotpot_dev_distractor_v1.json",

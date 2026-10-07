@@ -18,29 +18,29 @@
   "config": {
     "config_file": "search_zeroshot_musique_n1.yaml",
     "dataset": "musique_ans_dev",
-    "hypothesis": "Стоковая башня без обучения теряет от жёсткой дедупликации примерно столько же, сколько GTE top-6 в фазе 0 (−0.55 п.п. EM). Эта рука — не самостоятельный вопрос, а контроль: у неё нет N_train, поэтому её кривая по N — чистый инференсный эффект, с которым сравнивается кривая обученной.",
+    "hypothesis": "Without training, the stock tower loses about as much from strict deduplication as GTE top-6 did in the original quota measurement (−0.55 pp EM). This arm is a control rather than a standalone question: it has no N_train, so its curve over N is a pure inference-time effect against which the trained tower's curve is compared.",
     "judge": {
       "answer_model": "Qwen3-4B",
       "base_url": "http://127.0.0.1:8010/v1",
       "judge_max_tokens": 100,
       "max_tokens": 1000,
-      "script": "/home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py",
+      "script": "/path/to/Q-RAG-feedback/answer_judge_llms.py",
       "shards": 32
     },
-    "label": "Прямой поиск, zero-shot GTE, 6 шагов, N=1",
+    "label": "Direct search, zero-shot GTE, 6 steps, N=1",
     "order": 47.1,
     "retrieve": {
       "auto_prepare": false,
       "batch_size": 64,
       "cuda_visible_devices": "1",
       "device": "cuda:0",
-      "index_dir": "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte",
-      "input": "/home/a.anokhin/Judge/full-wiki/runs/shared/musique_ans_dev_hotpot_schema.jsonl",
+      "index_dir": "/path/to/data/full-wiki/wiki18-gte",
+      "input": "/path/to/repo/runs/shared/musique_ans_dev_hotpot_schema.jsonl",
       "kind": "search",
       "log_candidates": "none",
       "max_chunks_per_title": 1,
       "model_dtype": "float32",
-      "qrag_repo": "/home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki",
+      "qrag_repo": "/path/to/repo/Q-RAG_for_full-wiki",
       "steps": 6,
       "top_k": 100
     },
@@ -49,7 +49,7 @@
   "created_utc": "2026-08-08T12:21:13.747275+00:00",
   "env": {
     "cuda_visible_devices": null,
-    "executable": "/home/a.anokhin/venvs/gpu/bin/python",
+    "executable": "/path/to/venv/bin/python",
     "faiss": null,
     "gpu": [
       "0, NVIDIA H200, 143771 MiB",
@@ -68,7 +68,7 @@
     "transformers": "4.57.6"
   },
   "finished_utc": "2026-08-08T12:25:27.191199+00:00",
-  "hypothesis": "Стоковая башня без обучения теряет от жёсткой дедупликации примерно столько же, сколько GTE top-6 в фазе 0 (−0.55 п.п. EM). Эта рука — не самостоятельный вопрос, а контроль: у неё нет N_train, поэтому её кривая по N — чистый инференсный эффект, с которым сравнивается кривая обученной.",
+  "hypothesis": "Without training, the stock tower loses about as much from strict deduplication as GTE top-6 did in the original quota measurement (−0.55 pp EM). This arm is a control rather than a standalone question: it has no N_train, so its curve over N is a pure inference-time effect against which the trained tower's curve is compared.",
   "inputs": {
     "action_artifact": null,
     "corpus": {
@@ -78,12 +78,12 @@
       "rows": 21015324,
       "sha256": "43d7d3f58d01d711d95b00b70584211eea639fa46802905a4b7e11cf0617752d",
       "size_bytes": 14393573105,
-      "source_path": "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/data00/jiajie_jin/flashrag_indexes/wiki_dpr_100w/wiki_dump.jsonl",
+      "source_path": "/path/to/data/full-wiki/data00/jiajie_jin/flashrag_indexes/wiki_dpr_100w/wiki_dump.jsonl",
       "tar_member": null,
       "validate_id_matches_row": true
     },
     "dataset": {
-      "path": "/home/a.anokhin/Judge/full-wiki/runs/shared/musique_ans_dev_hotpot_schema.jsonl",
+      "path": "/path/to/repo/runs/shared/musique_ans_dev_hotpot_schema.jsonl",
       "sha256": "a2996d330e2a82274282ad39d3664977d80b75f2d1d9db6b9d0584495ba7d5d0",
       "size_bytes": 26626982
     },
@@ -93,7 +93,7 @@
       "model": "Alibaba-NLP/gte-multilingual-base",
       "resolved_revision": "9bbca17d9273fd0d03d5725c7a4b0f6b45142062"
     },
-    "index_dir": "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte"
+    "index_dir": "/path/to/data/full-wiki/wiki18-gte"
   },
   "metrics": {
     "chunks_max": 6,
@@ -116,21 +116,21 @@
   "stages": [
     {
       "argv": [
-        "/home/a.anokhin/venvs/gpu/bin/python",
+        "/path/to/venv/bin/python",
         "fullwiki_qrag.py",
         "search",
         "--index-dir",
-        "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte",
+        "/path/to/data/full-wiki/wiki18-gte",
         "--qrag-repo",
-        "/home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki",
+        "/path/to/repo/Q-RAG_for_full-wiki",
         "--device",
         "cuda:0",
         "--model-dtype",
         "float32",
         "--input",
-        "/home/a.anokhin/Judge/full-wiki/runs/shared/musique_ans_dev_hotpot_schema.jsonl",
+        "/path/to/repo/runs/shared/musique_ans_dev_hotpot_schema.jsonl",
         "--output",
-        "/home/a.anokhin/Judge/full-wiki/runs/2026-08-08-search-zeroshot-musique-n1/retrieval.jsonl",
+        "/path/to/repo/runs/2026-08-08-search-zeroshot-musique-n1/retrieval.jsonl",
         "--batch-size",
         "64",
         "--top-k",
@@ -158,8 +158,8 @@
     },
     {
       "argv": [
-        "/home/a.anokhin/venvs/gpu/bin/python",
-        "/home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py",
+        "/path/to/venv/bin/python",
+        "/path/to/Q-RAG-feedback/answer_judge_llms.py",
         "--retriever-logfile",
         "<shard>.jsonl",
         "--output-file",

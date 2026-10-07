@@ -1,13 +1,14 @@
-"""Среда прямого поиска по всем 21 млн чанков Wiki-18.
+"""Direct-search environment over all 21M Wiki-18 chunks.
 
-Отличие от ``QAEnv`` одно, но оно меняет всё: множество действий больше не
-приходит из датасета. Кандидаты шага — результат поиска ``s @ M.T`` по всему
-корпусу, поэтому из ``q0_s1``-файлов берутся только ``question``, ``answer`` и
-``supporting_facts``; поля ``candidates``/``judgements``/``betas``/``context``
-относятся к дистракторным пулам прошлой постановки и здесь игнорируются.
+The one difference from ``QAEnv`` changes everything: the action set no longer
+comes from the dataset. Step candidates are the result of searching
+``s @ M.T`` over the whole corpus, so only ``question``, ``answer`` and
+``supporting_facts`` are taken from the ``q0_s1`` files; the
+``candidates``/``judgements``/``betas``/``context`` fields belong to the
+distractor pools of the earlier setup and are ignored here.
 
-Состояние эпизода хранит три вещи, от которых зависит маскирование:
-взятые row ID, счётчик чанков на титул (квота ``N``) и номер шага.
+The episode state holds the three things masking depends on: the selected row
+IDs, the per-title chunk counter (quota ``N``) and the step number.
 """
 
 from __future__ import annotations
@@ -26,11 +27,11 @@ StepResult = namedtuple("StepResult", ["reward", "done", "valid"])
 
 
 def answer_variants(sample: dict[str, Any]) -> list[str]:
-    """Допустимые ответы примера, всегда списком.
+    """Accepted answers of an example, always as a list.
 
-    ``golden_answers`` приносит смесь NQ + HotpotQA (до 25 вариантов у NQ),
-    ``answer`` — старые ``q0_s1``-файлы. У примера с единственным ответом
-    список из одного элемента, и награда на нём не меняется ни на бит.
+    ``golden_answers`` comes from the NQ + HotpotQA mix (up to 25 aliases for
+    NQ), ``answer`` from the older ``q0_s1`` files. An example with a single
+    answer gets a one-element list, so its reward does not change at all.
     """
     variants = sample.get("golden_answers")
     if variants is None:
@@ -43,7 +44,7 @@ def answer_variants(sample: dict[str, Any]) -> list[str]:
 
 
 def gold_titles(sample: dict[str, Any]) -> list[str]:
-    """Титулы gold-статей эпизода в порядке первого появления."""
+    """Titles of the episode's gold articles in order of first appearance."""
     supporting = sample.get("supporting_facts")
     if not isinstance(supporting, list):
         return []
@@ -57,13 +58,13 @@ def gold_titles(sample: dict[str, Any]) -> list[str]:
 
 
 class SearchDatasetAdapter(Dataset):
-    """``q0_s1`` → примеры для прямого поиска, без кандидатных полей.
+    """``q0_s1`` → examples for direct search, without the candidate fields.
 
-    Флаг покрытия и идентификаторы gold-титулов считаются один раз здесь, а не
-    на каждом эпизоде: полного комплекта gold-титулов в Wiki-18 нет у 38.5%
-    объединённой выборки, награда на этих примерах почти недостижима, и кривые
-    обучения обязаны читаться раздельно. Словарь титулов корпуса после
-    разметки отпускается — он весит сотни мегабайт и дальше не нужен.
+    The coverage flag and gold-title ids are computed once here rather than per
+    episode: 38.5% of the combined set lacks the full set of gold titles in
+    Wiki-18, reward on those examples is nearly unreachable, and the training
+    curves must be read separately. The corpus title dictionary is released
+    after labelling: it takes hundreds of megabytes and is not needed later.
     """
 
     def __init__(self, dataset, title_table: TitleTable | None = None) -> None:
@@ -78,9 +79,9 @@ class SearchDatasetAdapter(Dataset):
             self.samples.append(
                 {
                     "id": sample_id,
-                    # Ключ, а не id: в nq_hotpotqa_train обе половины смеси
-                    # нумеруются с нуля, и по одному id holdout адресовал бы
-                    # два разных вопроса.
+                    # Key, not id: in nq_hotpotqa_train both halves of the mix
+                    # are numbered from zero, so a holdout addressed by id
+                    # alone would hit two different questions.
                     "key": str(raw.get("key", f"{source}:{sample_id}")),
                     "question": str(raw["question"]),
                     "answer": variants[0],
@@ -88,18 +89,18 @@ class SearchDatasetAdapter(Dataset):
                     "supporting_facts": raw.get("supporting_facts", []),
                     "gold_titles": titles,
                     "source": source,
-                    # None, а не False, когда gold-титулов у датасета нет
-                    # вовсе (сырая смесь NQ + HotpotQA их не носит): «не
-                    # проверяли» и «не покрыто» — разные вещи, и вторая
-                    # нарисовала бы кривую covered_share = 0 на ровном месте.
+                    # None rather than False when the dataset has no gold
+                    # titles at all (the NQ + HotpotQA raw mix carries none):
+                    # "not checked" and "not covered" differ, and the latter
+                    # would draw a spurious covered_share = 0 curve.
                     "gold_titles_covered": (
                         bool(title_table.all_titles_covered(titles))
                         if title_table is not None and titles
                         else None
                     ),
-                    # Пустой список титулов не должен строить нормализованный
-                    # индекс: у сырой смеси gold-титулов нет ни у одного
-                    # примера, а словарь 5.2 млн строк весит сотни мегабайт.
+                    # An empty title list must not build the normalized
+                    # index: no raw-mix example has gold titles, and the
+                    # 5.2M-entry dict takes hundreds of megabytes.
                     "gold_title_ids": (
                         title_table.title_ids_of(titles)
                         if title_table is not None and titles
@@ -109,9 +110,9 @@ class SearchDatasetAdapter(Dataset):
             )
         if title_table is not None:
             title_table.release_normalized_index()
-            # Доля считается от примеров с известными титулами, а не от всех:
-            # у половины NQ сырой смеси их нет вовсе, и общий знаменатель
-            # занизил бы покрытие вдвое на ровном месте.
+            # The share is over examples with known titles, not all of them:
+            # the NQ half of the raw mix has none, and a common denominator
+            # would halve the coverage for no reason.
             known = [
                 sample
                 for sample in self.samples
@@ -136,15 +137,15 @@ class SearchDatasetAdapter(Dataset):
 
 
 def load_weights(path: str | Path, dataset) -> "Any":
-    """Веса эпизодов из JSONL ``{"key": …, "w": …}`` в порядке датасета.
+    """Episode weights from a JSONL ``{"key": …, "w": …}``, in dataset order.
 
-    Отдельный файл, а не флаг в коде: руки A2/A3 будут отличаться от сырой
-    только им, и при одном сиде последовательность примеров останется
-    сопоставимой. Holdout исключается тем же механизмом — весом 0.
+    A separate file rather than a code flag: weighted variants differ from the
+    raw mix only by this file, and with the same seed the example sequence
+    stays comparable. The holdout is excluded by the same mechanism, weight 0.
 
-    Ключ обязан найтись у каждого примера: молча взятый по умолчанию вес
-    превратил бы забытую строку в тихое расширение обучающей выборки, а
-    заметить это по кривым нечем.
+    Every example must have a key: a silently applied default weight would turn
+    a forgotten line into a quiet extension of the training set, and nothing in
+    the curves would reveal it.
     """
     import numpy as np
 
@@ -168,18 +169,18 @@ def load_weights(path: str | Path, dataset) -> "Any":
         weights[index] = table[key]
     if missing:
         raise ValueError(
-            f"{path}: у {len(dataset)} примеров датасета нет веса, "
-            f"например {missing[:3]}"
+            f"{path}: no weight for some of the {len(dataset)} dataset examples, "
+            f"e.g. {missing[:3]}"
         )
     if not (weights >= 0).all():
-        raise ValueError(f"{path}: отрицательные веса запрещены")
+        raise ValueError(f"{path}: negative weights are not allowed")
     if weights.sum() <= 0:
-        raise ValueError(f"{path}: суммарный вес нулевой, тянуть нечего")
+        raise ValueError(f"{path}: total weight is zero, nothing to sample")
     return weights
 
 
 class DenseSearchEnv:
-    """Один эпизод прямого поиска: состояние, маски и награда."""
+    """One direct-search episode: state, masks and reward."""
 
     def __init__(
         self,
@@ -210,11 +211,11 @@ class DenseSearchEnv:
             if weights is not None:
                 if len(weights) != len(dataset):
                     raise ValueError(
-                        f"весов {len(weights)}, примеров {len(dataset)}"
+                        f"{len(weights)} weights for {len(dataset)} examples"
                     )
-                # Кумулятивная сумма считается один раз: эпизод выбирается на
-                # каждом reset, а np.cumsum по 170 тыс. примеров в этот момент
-                # стоил бы дороже самого поиска.
+                # The cumulative sum is computed once: an episode is drawn on
+                # every reset, and np.cumsum over 170k examples at that point
+                # would cost more than the search itself.
                 cumulative = np.cumsum(np.asarray(weights, dtype=np.float64))
                 self._cumulative_weights = cumulative / cumulative[-1]
 
@@ -236,10 +237,10 @@ class DenseSearchEnv:
         )
 
     def sample_index(self) -> int:
-        """Индекс следующего эпизода.
+        """Index of the next episode.
 
-        Эпизоды тянет среда, а не датлоадер, поэтому любой сэмплер обязан
-        жить здесь: равномерный ``integers`` шёл мимо весов.
+        Episodes are drawn by the environment, not by a dataloader, so any
+        sampler must live here: a uniform ``integers`` draw ignored the weights.
         """
         if self._cumulative_weights is None:
             return int(self._rng.integers(len(self.dataset)))
@@ -270,7 +271,7 @@ class DenseSearchEnv:
 
     @property
     def state_text(self) -> str:
-        """``вопрос [SEP] чанк₁ [SEP] …`` — то, что кодирует state-башня."""
+        """``question [SEP] chunk₁ [SEP] …``, the text the state tower encodes."""
         return self.separator.join([self.question, *self.selected_texts])
 
     @property
@@ -278,14 +279,14 @@ class DenseSearchEnv:
         return self.sample.get("gold_titles_covered")
 
     def blocked_rows(self) -> list[int]:
-        """Уже взятые строки: их запрещает не квота, а сам эпизод."""
+        """Rows already selected: blocked by the episode itself, not the quota."""
         return list(self.selected_rows)
 
     def blocked_titles(self) -> list[int]:
-        """Титулы, исчерпавшие квоту ``N``.
+        """Titles that have used up the quota ``N``.
 
-        Титул закрывается не первым взятым чанком, а исчерпанием квоты:
-        gold-предложение регулярно лежит во втором чанке той же статьи.
+        A title is closed when its quota is exhausted, not after its first
+        chunk: the gold sentence is often in the second chunk of the article.
         """
         return [
             title_id
@@ -311,10 +312,11 @@ class DenseSearchEnv:
         )
 
     def step(self, row_id: int, text: str, title_id: int) -> StepResult:
-        """Взять чанк, спросить награду. Блокирующий вызов ридера и судьи.
+        """Take a chunk and query the reward. Blocking reader and judge call.
 
-        Вызывается из пула потоков: среды независимы, а ридер отвечает
-        десятки миллисекунд, и последовательный обход батча упёрся бы в них.
+        Called from a thread pool: environments are independent, and the reader
+        takes tens of milliseconds per answer, so a sequential pass over the
+        batch would be bound by it.
         """
         row_id = int(row_id)
         if row_id in self.selected_rows:
@@ -332,8 +334,8 @@ class DenseSearchEnv:
         return StepResult(
             reward=reward,
             done=bool(feedback["terminated"]) or truncated,
-            # Ошибка vLLM — это не «контекст бесполезен»: такой переход
-            # помечается невалидным и в лосс не идёт.
+            # A vLLM error does not mean "the context is useless": such a
+            # transition is marked invalid and excluded from the loss.
             valid=bool(feedback.get("valid", True)),
         )
 
@@ -341,7 +343,7 @@ class DenseSearchEnv:
         return list(self.title_counts.elements())
 
     def second_chunk_count(self) -> int:
-        """Сколько взятых чанков — не первые чанки своего титула."""
+        """Number of selected chunks that are not the first of their title."""
         return sum(max(count - 1, 0) for count in self.title_counts.values())
 
 
@@ -350,7 +352,7 @@ def make_search_envs(
     count: int,
     seed: int | None = None,
 ) -> list[DenseSearchEnv]:
-    """``count`` независимых сред с общим датасетом и своими клиентами vLLM."""
+    """``count`` independent envs with a shared dataset and their own vLLM clients."""
     if count < 1:
         raise ValueError(f"envs_parallel must be positive: {count}")
     import numpy as np

@@ -5,28 +5,28 @@ import numpy
 import pyarrow.parquet as pq
 from torch.utils.data import Dataset
 
-# Половина HotpotQA несёт gold-титулы в metadata.supporting_facts, половина NQ
-# не несёт ничего (metadata пуст у всех 79 168 строк). Читается вложенная
-# проекция, а не колонка целиком: рядом с титулами в metadata лежит весь
-# дистракторный контекст — десять абзацев текста на пример, то есть основной
-# вес файла в 355 МБ.
+# The HotpotQA half carries gold titles in metadata.supporting_facts, the NQ
+# half carries nothing (metadata is empty in all 79,168 rows). A nested
+# projection is read instead of the whole column: next to the titles, metadata
+# holds the full distractor context, ten paragraphs per example, which is most
+# of the 355 MB file.
 TITLE_COLUMN = "metadata.supporting_facts.title"
 SENT_ID_COLUMN = "metadata.supporting_facts.sent_id"
 
 
 def example_key(data_source, sample_id) -> str:
-    """Устойчивый ключ примера: ``id`` в этом датасете сам по себе не уникален.
+    """Stable example key: ``id`` alone is not unique in this dataset.
 
-    Обе половины смеси нумеруются с нуля (``train_0``, ``train_1``, …), и
-    множество идентификаторов NQ целиком вложено в множество HotpotQA — все
-    79 168 совпадают. По ключу адресуются holdout и веса эпизодов, поэтому
-    один голый ``id`` склеил бы вопрос NQ с чужим вопросом HotpotQA.
+    Both halves of the mix are numbered from zero (``train_0``, ``train_1``, …),
+    and the NQ ids are a subset of the HotpotQA ids: all 79,168 coincide. The
+    holdout and episode weights are addressed by this key, so a bare ``id``
+    would merge an NQ question with an unrelated HotpotQA question.
     """
     return f"{data_source}:{sample_id}"
 
 
 def answer_list(value) -> list:
-    """``golden_answers`` в виде списка строк, чем бы parquet его ни отдал."""
+    """``golden_answers`` as a list of strings, whatever type parquet returns."""
     if isinstance(value, (list, tuple, numpy.ndarray)):
         return [str(item) for item in value]
     return [str(value)]
@@ -43,8 +43,8 @@ class RetrievalNqHotpotqa(Dataset):
         self.samples = []
 
         file_path = os.path.join(path, f"{split}.parquet")
-        # data_source нужен раздельным eval-кривым и файлу весов: смесь
-        # обучается одна, а читается по половинам.
+        # data_source is needed for per-source eval curves and the weights
+        # file: the mix is trained as one dataset but read per half.
         table = pq.read_table(
             file_path,
             columns=[
@@ -61,18 +61,17 @@ class RetrievalNqHotpotqa(Dataset):
             sample = {
                 "id": columns["id"][index],
                 "question": columns["question"][index],
-                # Список, а не строка через ', '. Склейка превращала до 25
-                # допустимых ответов NQ в одну недостижимую строку: EM не
-                # срабатывал ни на одном варианте, и награда целиком уезжала
-                # на судью — перекос, которого у HotpotQA (ровно один ответ)
-                # нет.
+                # A list, not a ', '-joined string. Joining turned up to 25
+                # accepted NQ answers into one unreachable string: EM never
+                # matched any alias and the whole reward shifted to the judge,
+                # a bias HotpotQA (exactly one answer) does not have.
                 "golden_answers": answer_list(columns["golden_answers"][index]),
                 "data_source": columns["data_source"][index],
             }
             sample["key"] = example_key(sample["data_source"], sample["id"])
-            # supporting_facts кладутся только там, где они есть: у половины
-            # NQ их нет вовсе, и пустой список означал бы «gold-титулов у
-            # примера ноль», а не «мы их не знаем».
+            # supporting_facts are stored only where they exist: the NQ half
+            # has none, and an empty list would mean "the example has zero
+            # gold titles" rather than "they are unknown".
             if titles[index]:
                 sample["supporting_facts"] = [
                     [title, sent_id]
@@ -94,11 +93,11 @@ class RetrievalNqHotpotqa(Dataset):
 
     @staticmethod
     def _keep_listed(samples: list, ids_file: str) -> list:
-        """Оставить только перечисленные примеры (holdout как eval-набор).
+        """Keep only the listed examples (holdout used as an eval set).
 
-        Падение на недостающем ключе намеренное: молча урезанный holdout
-        означал бы eval-кривую не по тем вопросам, а заметить это по числам
-        нечем.
+        Failing on a missing key is intentional: a silently truncated holdout
+        would give an eval curve over the wrong questions, and nothing in the
+        numbers would reveal it.
         """
         with open(ids_file, encoding="utf-8") as source:
             payload = json.load(source)
@@ -107,8 +106,8 @@ class RetrievalNqHotpotqa(Dataset):
         missing = [key for key in wanted if key not in index]
         if missing:
             raise ValueError(
-                f"{ids_file}: {len(missing)} ключей нет в датасете, "
-                f"например {missing[:3]}"
+                f"{ids_file}: {len(missing)} keys are missing from the dataset, "
+                f"e.g. {missing[:3]}"
             )
         return [index[key] for key in wanted]
 
@@ -128,7 +127,7 @@ class RetrievalNqHotpotqa(Dataset):
 
 if __name__ == '__main__':
 
-    dataset = RetrievalNqHotpotqa(path="/home/o.inozemcev/Datasets/NQ_Hotpotqa_train",
+    dataset = RetrievalNqHotpotqa(path="/path/to/data/NQ_Hotpotqa_train",
         split="test", length=10)
 
     print("Name:", dataset.name())

@@ -1,27 +1,28 @@
-# Последний чекпоинт линии A на MuSiQue-Ans dev — OOD-строка пары best/last.
+# Last checkpoint of line A on MuSiQue-Ans dev: the out-of-domain row of the
+# best/last pair.
 #
-# Обоснование выбора — в search_last_hotpotqa.yaml. Этот датасет в обучении не
-# участвовал, поэтому сравнение здесь отвечает на отдельный вопрос: не
-# подстроился ли пик eval-кривой (а он снят на 1 000 вопросов HotpotQA dev)
-# под HotpotQA настолько, что на незнакомом датасете last окажется лучше
-# best. Если да, «лучший чекпоинт» выбран по чужой шкале.
-label: Прямой поиск, последний чекпоинт, 6 шагов, N=2
+# See search_last_hotpotqa.yaml for the rationale. This dataset was not used in
+# training, so the comparison asks a separate question: did the eval-curve peak
+# (measured on 1,000 HotpotQA dev questions) fit HotpotQA so closely that last
+# beats best on an unseen dataset? If so, the "best checkpoint" was selected on
+# the wrong scale.
+label: Direct search, last checkpoint, 6 steps, N=2
 slug: lineA-last-musique
 dataset: musique_ans_dev
 
 order: 49
 hypothesis: >-
-  Разница best и last на MuSiQue укладывается в шум. Систематический перевес
-  last означал бы, что выбор чекпоинта по eval-подвыборке HotpotQA вредит
-  переносу.
+  The best-last difference on MuSiQue is within noise. A consistent advantage
+  of last would mean that checkpoint selection on the HotpotQA eval subset
+  hurts transfer.
 
 retrieve:
   kind: search
-  index_dir: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte
-  qrag_repo: /home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki
-  checkpoint: /home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki/runs/Aug03_12-44-38_lineA_main/model_last.pt
+  index_dir: /path/to/data/full-wiki/wiki18-gte
+  qrag_repo: Q-RAG_for_full-wiki
+  checkpoint: Q-RAG_for_full-wiki/runs/Aug03_12-44-38_lineA_main/model_last.pt
   state_source: critic
-  input: /home/a.anokhin/Judge/full-wiki/runs/shared/musique_ans_dev_hotpot_schema.jsonl
+  input: runs/shared/musique_ans_dev_hotpot_schema.jsonl
   cuda_visible_devices: "2"
   device: cuda:0
   model_dtype: float32
@@ -33,7 +34,8 @@ retrieve:
   auto_prepare: false
 
 judge:
-  script: /home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py
+  script: src/answer_judge.py
+  contract: v1
   base_url: http://127.0.0.1:8010/v1
   answer_model: Qwen3-4B
   max_tokens: 1000

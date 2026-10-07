@@ -1,29 +1,30 @@
-# Стартовая точка линии A на 2WikiMultiHopQA: стоковая GTE-башня без чекпоинта.
+# Starting point of line A on 2WikiMultiHopQA: the stock GTE tower with no
+# checkpoint.
 #
-# Без этой строки цифра обученной башни на 2Wiki не утверждает ничего: в
-# реестре нет ни одного рана на этом датасете, сравнивать не с чем. Ран
-# отличается от search_best_2wiki.yaml ровно отсутствием checkpoint, поэтому
-# разница двух строк — это вклад обучения и ничего больше.
+# Without this row the trained number on 2Wiki has nothing to be compared with.
+# The run differs from search_best_2wiki.yaml only by the missing checkpoint,
+# so the gap between the two rows is the contribution of training and nothing
+# else.
 #
-# Потолок покрытия корпуса здесь 51.05% против 81.67% у HotpotQA
-# (runs/shared/2wiki_dev_title_coverage.json): половина gold-статей 2Wiki в
-# Wiki-18 просто отсутствует. Абсолютный EM поэтому будет низким у обеих
-# строк, и читать его нужно как долю потолка, а не как число рядом с HotpotQA.
-label: Прямой поиск, zero-shot GTE, 6 шагов, N=2
+# The corpus coverage ceiling here is 51.05% vs 81.67% for HotpotQA
+# (runs/shared/2wiki_dev_title_coverage.json): half of the 2Wiki gold articles
+# are missing from Wiki-18. Absolute EM is therefore low for both rows; read it
+# as a fraction of the ceiling, not next to HotpotQA.
+label: Direct search, zero-shot GTE, 6 steps, N=2
 slug: search-zeroshot-2wiki
 dataset: 2wiki_dev
 
 order: 47
 hypothesis: >-
-  Итеративный прямой поиск стоковой GTE-башней задаёт стартовую точку на
-  2Wiki. Ожидание — заметно ниже HotpotQA по абсолютному EM из-за вдвое
-  меньшего покрытия корпуса, но сопоставимо по доле потолка.
+  Iterative direct search with the stock GTE tower sets the starting point on
+  2Wiki. Expected: clearly below HotpotQA in absolute EM because corpus
+  coverage is half as large, but comparable as a fraction of the ceiling.
 
 retrieve:
   kind: search
-  index_dir: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte
-  qrag_repo: /home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki
-  input: /home/a.anokhin/Judge/datasets/data_sources/2WikiMultiHopQA/data_ids_april7/dev.json
+  index_dir: /path/to/data/full-wiki/wiki18-gte
+  qrag_repo: Q-RAG_for_full-wiki
+  input: /path/to/data/2WikiMultiHopQA/data_ids_april7/dev.json
   cuda_visible_devices: "6"
   device: cuda:0
   model_dtype: float32
@@ -35,7 +36,8 @@ retrieve:
   auto_prepare: false
 
 judge:
-  script: /home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py
+  script: src/answer_judge.py
+  contract: v1
   base_url: http://127.0.0.1:8010/v1
   answer_model: Qwen3-4B
   max_tokens: 1000

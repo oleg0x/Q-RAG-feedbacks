@@ -1,9 +1,9 @@
-"""Игрушечная обвязка для юнитов линии A: без GPU, без BERT, без vLLM.
+"""Toy harness for line A unit tests: no GPU, no BERT, no vLLM.
 
-Всё, что здесь есть, повторяет интерфейсы боевых компонентов ровно настолько,
-насколько их трогает проверяемый код: токенайзер отдаёт списки id, башня
-считает mean pooling по маске (а значит не зависит от размера батча и
-паддинга), обратная связь возвращает заранее заданную награду.
+Everything here mimics the interfaces of the real components only as far as
+the tested code touches them: the tokenizer returns lists of ids, the tower
+computes masked mean pooling (so it does not depend on batch size or padding),
+and the feedback returns a predefined reward.
 """
 
 from __future__ import annotations
@@ -20,10 +20,11 @@ from rl.feedback.feedback import AFeedbackModel
 
 
 class ToyTokenizer:
-    """Пословный токенайзер с фиксированным словарём.
+    """Word-level tokenizer with a fixed vocabulary.
 
-    ``stack_memory`` требует от токенайзера ровно этих полей; настоящий GTE
-    сюда тащить незачем, а его загрузка сделала бы юниты офлайн-зависимыми.
+    ``stack_memory`` needs exactly these tokenizer fields; there is no need for
+    the real GTE here, and loading it would make the unit tests depend on
+    downloaded weights.
     """
 
     def __init__(self, vocab_size: int = 128) -> None:
@@ -35,7 +36,7 @@ class ToyTokenizer:
         self.padding_side = "right"
 
     def _token_id(self, word: str) -> int:
-        # Стабильный хеш: встроенный hash рандомизирован между процессами.
+        # Stable hash: the built-in hash is randomized across processes.
         digest = sum((index + 1) * ord(char) for index, char in enumerate(word))
         return 3 + digest % (self.vocab_size - 3)
 
@@ -57,10 +58,10 @@ class ToyTokenizer:
 
 
 class ToyTower(nn.Module):
-    """Кодировщик состояния: усреднение эмбеддингов по маске внимания.
+    """State encoder: embeddings averaged over the attention mask.
 
-    Инвариантность к паддингу здесь принципиальна — на ней стоит проверка
-    «батчевый rollout совпадает с пошаговым».
+    Padding invariance is essential here: the check "batched rollout matches
+    step-by-step rollout" relies on it.
     """
 
     def __init__(self, vocab_size: int = 128, dim: int = 8, seed: int = 0, scale: float = 1.0) -> None:
@@ -77,7 +78,7 @@ class ToyTower(nn.Module):
 
 
 class ToyActionTower(nn.Module):
-    """Замороженная action-башня: тот же интерфейс, что у ``EmbedderNone``."""
+    """Frozen action tower with the same interface as ``EmbedderNone``."""
 
     def __init__(self, tower: ToyTower) -> None:
         super().__init__()
@@ -88,7 +89,7 @@ class ToyActionTower(nn.Module):
 
 
 class ConstantFeedback(AFeedbackModel):
-    """Награда по расписанию: ``reward_at_final`` на терминальном шаге."""
+    """Scheduled reward: ``reward_at_final`` at the terminal step."""
 
     FEEDBACK_MODEL_NAME = "toy-constant"
 
@@ -113,7 +114,7 @@ class ConstantFeedback(AFeedbackModel):
 
 
 class ToyAgent:
-    """Минимальный агент: три башни, α и размер пула политики."""
+    """Minimal agent: three towers, α and the policy pool size."""
 
     class _Section:
         def __init__(self, **kwargs) -> None:
@@ -137,7 +138,7 @@ class ToyAgent:
 
 
 def write_corpus(path: Path, rows: Sequence[tuple[str, str]]) -> None:
-    """Корпус вида ``("Title", "passage")`` в формате Wiki-18."""
+    """Corpus of ``("Title", "passage")`` rows in the Wiki-18 format."""
     with path.open("w", encoding="utf-8") as destination:
         for row_id, (title, passage) in enumerate(rows):
             contents = f'"{title}"\n{passage}'

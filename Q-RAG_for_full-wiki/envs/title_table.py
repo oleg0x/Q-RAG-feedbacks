@@ -1,17 +1,18 @@
-"""Таблица титулов Wiki-18: строка индекса → идентификатор статьи.
+"""Wiki-18 title table: index row → article identifier.
 
-Артефакт собирается скриптом ``full-wiki/build_title_table.py`` (один
-потоковый проход по корпусу) и здесь только читается. Нужен он в двух местах:
+The artifact is built by ``src/build_title_table.py`` (one streaming pass over
+the corpus) and is only read here. It is needed in two places:
 
-* квота ``N`` чанков на титул маскирует строки **до** ``topk``, а титул строки
-  иначе пришлось бы узнавать чтением ста строк корпуса на каждом шаге;
-* флаг «оба gold-титула есть в корпусе» пишется в лог эпизода: полного
-  комплекта нет у 38.5% обучающей выборки, и без флага кривая награды
-  смешивает нерешаемые примеры с решаемыми.
+* the per-title quota of ``N`` chunks masks rows **before** ``topk``; without
+  the table the title of each row would have to be read from the corpus, a
+  hundred rows per step;
+* the flag "both gold titles are in the corpus" is written to the episode log:
+  38.5% of the training set lacks the full set, and without the flag the
+  reward curve mixes unsolvable examples with solvable ones.
 
-Формат: ``<output>.npy`` (``int32[rows]``), ``<output>.titles.jsonl.gz`` (по
-JSON-строке на титул, номер строки равен ``title_id``) и ``<output>.json``
-с метаданными.
+Format: ``<output>.npy`` (``int32[rows]``), ``<output>.titles.jsonl.gz`` (one
+JSON string per title, line number equals ``title_id``) and ``<output>.json``
+with metadata.
 """
 
 from __future__ import annotations
@@ -27,13 +28,13 @@ import numpy as np
 
 
 def normalize_title(title: str) -> str:
-    """Свести титулы двух дампов Википедии к сравнимому виду.
+    """Bring titles from two Wikipedia dumps to a comparable form.
 
-    Копия ``fullwiki_qrag.normalize_title`` из лаборатории full-wiki: HotpotQA
-    хранит титулы дампа 2017 года с HTML-сущностями (``Procter &amp; Gamble``),
-    Wiki-18 — уже раскодированные. Строгое равенство занижает покрытие
-    gold-титулов примерно на 4.6 п.п. Импортировать оригинал нельзя: это
-    отдельный репозиторий, — поэтому определения обязаны совпадать буквально.
+    A copy of ``normalize_title`` from ``src/fullwiki_qrag.py``: HotpotQA stores
+    titles of the 2017 dump with HTML entities (``Procter &amp; Gamble``), while
+    Wiki-18 titles are already decoded. Strict equality underestimates gold-title
+    coverage by about 4.6 pp. The original cannot be imported (it lives in a
+    separate package), so the two definitions must match literally.
     """
     decoded = html.unescape(title)
     folded = unicodedata.normalize("NFKC", decoded).casefold()
@@ -41,7 +42,7 @@ def normalize_title(title: str) -> str:
 
 
 class TitleTable:
-    """``int32[rows]`` с идентификатором титула каждой строки индекса."""
+    """``int32[rows]`` holding the title id of every index row."""
 
     def __init__(
         self,
@@ -117,11 +118,11 @@ class TitleTable:
         return self.titles[int(self.title_ids[int(row_id)])]
 
     def normalized_index(self) -> dict[str, int]:
-        """Нормализованный титул → ``title_id``.
+        """Normalized title → ``title_id``.
 
-        Строится лениво и один раз: 5.2 млн строк в питоновском словаре стоят
-        сотни мегабайт, а нужны они только на разметке датасета — дальше
-        эпизод оперирует целыми идентификаторами.
+        Built lazily and once: 5.2M entries in a Python dict cost hundreds of
+        megabytes and are needed only while labelling the dataset; episodes
+        then work with integer ids.
         """
         if self._normalized is None:
             if self.titles is None:
@@ -133,11 +134,11 @@ class TitleTable:
         return self._normalized
 
     def release_normalized_index(self) -> None:
-        """Отпустить словарь титулов после разметки датасета."""
+        """Free the title dictionary once the dataset is labelled."""
         self._normalized = None
 
     def title_ids_of(self, titles: Iterable[str]) -> list[int]:
-        """Идентификаторы титулов, которые вообще есть в корпусе."""
+        """Ids of the given titles that exist in the corpus at all."""
         index = self.normalized_index()
         found = []
         for title in titles:
@@ -147,7 +148,7 @@ class TitleTable:
         return found
 
     def all_titles_covered(self, titles: Iterable[str]) -> bool:
-        """Флаг «полный комплект gold-титулов есть в корпусе»."""
+        """Flag: the full set of gold titles is present in the corpus."""
         index = self.normalized_index()
         titles = list(titles)
         if not titles:

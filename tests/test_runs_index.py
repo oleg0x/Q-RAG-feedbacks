@@ -26,7 +26,7 @@ def test_datasets_go_into_separate_groups() -> None:
 
 
 def test_run_without_dataset_counts_as_hotpotqa() -> None:
-    # Все раны реестра до 2026-08-05 сделаны на HotpotQA и поля не имеют.
+    # Registry runs made before the dataset field existed are all HotpotQA.
     groups = runs_index.comparable([row("old", None, 7405)])
     assert list(groups) == [runlib.DEFAULT_DATASET]
 
@@ -43,8 +43,8 @@ def test_smoke_run_is_dropped_inside_its_own_dataset() -> None:
 
 
 def test_small_dataset_survives_next_to_a_large_one() -> None:
-    # Прежний отбор брал модальное число примеров по всему реестру, поэтому
-    # 2 417 вопросов MuSiQue выпадали из витрины рядом с 7 405 HotpotQA.
+    # Taking the modal number of examples over the whole registry used to
+    # drop the 2,417 MuSiQue questions next to the 7,405 of HotpotQA.
     groups = runs_index.comparable(
         [
             row("hotpot-a", "hotpotqa_dev_fullwiki", 7405),

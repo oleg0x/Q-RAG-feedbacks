@@ -98,7 +98,7 @@ No extra commentary."""
 
 _NUMBERED_LINE = re.compile(r"^\s*\d+[\.\)]\s*(.+?)\s*$", re.MULTILINE)
 
-DATA_ROOT = "/home/a.anokhin/Judge/datasets/data_sources"
+DATA_ROOT = "/path/to/data"
 HOTPOT_PATHS = {
     "train": [f"{DATA_ROOT}/hotpotqa/hotpot_train_v1.1.json"],
     "dev":   [f"{DATA_ROOT}/hotpotqa/hotpot_dev_distractor_v1.json"],

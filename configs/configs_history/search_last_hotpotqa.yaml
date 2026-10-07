@@ -1,35 +1,34 @@
-# Тот же эксперимент, что search_best_hotpotqa.yaml, но последним чекпоинтом.
+# Same experiment as search_best_hotpotqa.yaml, but with the last checkpoint.
 #
-# Вопрос ровно один: значил ли что-нибудь выбор model_best. Кривая eval с шага
-# ~7 000 стоит на плато 0.484 ± 0.005 все оставшиеся 23 000 шагов, а
-# model_best — пик 0.499 на шагах 12 500–13 000, то есть примерно одна сигма
-# над плато при σ ≈ 1.6 п.п. на выборке в 1 000 вопросов. Если выбор по
-# argmax шумной кривой ничего не решает, две строки совпадут в пределах
-# нескольких десятых, и парный МакНемар это покажет.
+# The only question: did selecting model_best matter? From step ~7,000 the eval
+# curve stays on a plateau of 0.484 ± 0.005 for the remaining 23,000 steps,
+# while model_best is the 0.499 peak at steps 12,500-13,000, about one sigma
+# above the plateau (σ ≈ 1.6 pp on 1,000 questions). If argmax selection on a
+# noisy curve decides nothing, the two rows will agree within a few tenths of a
+# point, and paired McNemar will show it.
 #
-# model_last.pt — это optim_step 29 500, а не 30 000: чекпоинт пишется на
-# eval-точках с шагом 500, и последняя запись предшествует финальному шагу.
+# model_last.pt is optim_step 29,500, not 30,000: checkpoints are written at
+# eval points every 500 steps, and the last one precedes the final step.
 #
-# Метка отличается от best-конфига словом «последний чекпоинт»: метки
-# вмораживаются в манифест при запуске и служат ключами парного теста,
-# поэтому переименовать уже сделанный ран задним числом нельзя.
-label: Прямой поиск, последний чекпоинт, 6 шагов, N=2
+# The label differs from the best config by "last checkpoint": labels are
+# frozen into the run manifest at launch and serve as keys for the paired test.
+label: Direct search, last checkpoint, 6 steps, N=2
 slug: lineA-last-hotpotqa
 dataset: hotpotqa_dev_fullwiki
 
 order: 49
 hypothesis: >-
-  Выбор чекпоинта по пику eval-кривой не даёт значимого преимущества над
-  последним: разница best и last на полном dev укладывается в шум, а
-  парный МакНемар не показывает устойчивого перевеса.
+  Selecting the checkpoint at the eval-curve peak gives no significant
+  advantage over the last one: the best-last difference on the full dev set is
+  within noise, and paired McNemar shows no consistent advantage.
 
 retrieve:
   kind: search
-  index_dir: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte
-  qrag_repo: /home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki
-  checkpoint: /home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki/runs/Aug03_12-44-38_lineA_main/model_last.pt
+  index_dir: /path/to/data/full-wiki/wiki18-gte
+  qrag_repo: Q-RAG_for_full-wiki
+  checkpoint: Q-RAG_for_full-wiki/runs/Aug03_12-44-38_lineA_main/model_last.pt
   state_source: critic
-  input: /home/a.anokhin/Judge/datasets/data_sources/hotpotqa/hotpot_dev_fullwiki_v1.json
+  input: /path/to/data/hotpotqa/hotpot_dev_fullwiki_v1.json
   cuda_visible_devices: "2"
   device: cuda:0
   model_dtype: float32
@@ -41,7 +40,8 @@ retrieve:
   auto_prepare: false
 
 judge:
-  script: /home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py
+  script: src/answer_judge.py
+  contract: v1
   base_url: http://127.0.0.1:8010/v1
   answer_model: Qwen3-4B
   max_tokens: 1000

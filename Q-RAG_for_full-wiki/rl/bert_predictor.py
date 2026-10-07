@@ -21,10 +21,10 @@ class BertPredictor(nn.Module):
         self.model_dim = model_dim
         self.head = nn.Linear(model_dim, output_size)
         self.n_output = n_output
-        # У action-башни нормировка обязательна: она должна воспроизводить
-        # wiki18-gte. У state-башни её можно выключить (normalize: false в
-        # конфиге) — на ранжирование это не влияет, ||s|| одинаков для всех
-        # кандидатов одного состояния, зато Q перестаёт упираться в потолок 1.0.
+        # The action tower must normalize to reproduce wiki18-gte. The state
+        # tower may skip it (normalize: false in the config): ranking is
+        # unaffected since ||s|| is the same for all candidates of a state, and
+        # Q is no longer capped at 1.0.
         self.normalize = normalize
         self.tokenizer = tokenizer
         self.pad_token_id: int = tokenizer.pad_token_id
@@ -61,16 +61,16 @@ class BertPredictor(nn.Module):
         if self.n_output > 1:
             prediction  = out[:, 1: self.n_output + 1]
         else:
-            # CLS вместо masked mean: база wiki18-gte построена пайплайном
-            # SentenceTransformer Transformer → Pooling(CLS) → Normalize
-            # (modules.json + 1_Pooling/config.json у ревизии 9bbca17), и
-            # action-вектор обязан совпадать с тем, что лежит в шардах.
+            # CLS instead of masked mean: the wiki18-gte index was built with the
+            # SentenceTransformer pipeline Transformer → Pooling(CLS) → Normalize
+            # (modules.json + 1_Pooling/config.json at revision 9bbca17), and
+            # the action vector must match what is stored in the shards.
             prediction  = out[:, 0]
 
-        # L2 вместо деления на 10: индекс собран из нормированных векторов
+        # L2 instead of dividing by 10: the index is built from normalized vectors
         # (manifest: normalization=l2, metric=inner_product_on_l2_normalized_vectors),
-        # поэтому Q(s, a) должен быть косинусом, а не произведением
-        # ненормированных эмбеддингов в произвольном масштабе.
+        # so Q(s, a) must be a cosine, not a product of unnormalized
+        # embeddings at an arbitrary scale.
         if self.normalize:
             prediction = F.normalize(prediction, p=2, dim=-1)
 

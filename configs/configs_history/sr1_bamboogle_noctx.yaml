@@ -1,22 +1,23 @@
-# Bamboogle из eval-таблицы Search-R1: ридер вообще без контекста.
+# Bamboogle from the Search-R1 evaluation split: the reader with no context at
+# all.
 #
-# Нижняя граница шкалы и единственный способ прочитать однохопные числа. У
-# Search-R1 строка Direct Inference на Qwen2.5-7B без ретривала даёт на
-# TriviaQA .408 при их же итоговых .638 — то есть большая часть числа там не
-# заслуга поиска, а знания модели. Без этой строки наш результат на TriviaQA,
-# PopQA и NQ невозможно интерпретировать.
+# The lower bound of the scale and the only way to interpret the single-hop
+# numbers. Search-R1's Direct Inference row (Qwen2.5-7B, no retrieval) scores
+# .408 on TriviaQA against their final .638, so much of that number reflects
+# model knowledge rather than search. Without this row our TriviaQA, PopQA and
+# NQ results cannot be interpreted.
 #
-# Производная от sr1-best-bamboogle: берутся те же вопросы в том же порядке, а
-# pred_texts вычищаются. Ретривал не гоняется, GPU не нужен — поэтому ран
-# обязан идти после sr1_bamboogle_best.
+# Derived from sr1-best-bamboogle: the same questions in the same order, with
+# pred_texts cleared. No retrieval and no GPU are needed, so it must run after
+# sr1_bamboogle_best.
 label: no retrieval
 slug: sr1-noctx-bamboogle
 dataset: sr1_bamboogle
 
 order: 10
 hypothesis: >-
-  Сколько Qwen3-4B отвечает на Bamboogle без контекста вообще — нижняя граница,
-  относительно которой читаются обе поисковые строки.
+  How well Qwen3-4B answers Bamboogle with no context at all: the lower bound
+  against which both search rows are read.
 
 retrieve:
   kind: variant
@@ -24,7 +25,8 @@ retrieve:
   source_run: 2026-08-07-sr1-best-bamboogle
 
 judge:
-  script: /home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py
+  script: src/answer_judge.py
+  contract: v1
   base_url: http://127.0.0.1:8010/v1
   answer_model: Qwen3-4B
   max_tokens: 1000

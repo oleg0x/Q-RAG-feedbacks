@@ -3,8 +3,8 @@ task: hotpotqa_2wiki_q0_s1
 # Combined HotpotQA + 2Wiki candidate-beta train set, filtered to the q0_s1
 # subset (question_only_success_rate == 0, with_support_facts_success_rate == 1)
 # by gig_pipeline/filter_candidate_train_by_success_ids.py.
-data_path: /home/a.anokhin/Judge/output/combined/hotpotqa_2wiki_candidate_train_q0_s1.jsonl
-test_data_path: /home/a.anokhin/Judge/datasets/data_sources/2WikiMultiHopQA/data_ids_april7
+data_path: /path/to/workspace/output/combined/hotpotqa_2wiki_candidate_train_q0_s1.jsonl
+test_data_path: /path/to/data/2WikiMultiHopQA/data_ids_april7
 sort_by_index: False
 
 positions_processor: none

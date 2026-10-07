@@ -76,7 +76,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--model", default="Qwen3-4B")
     parser.add_argument("--judge-max-tokens", type=int, default=100)
     parser.add_argument(
-        "--qrag-repo", type=Path, default=Path("/home/a.anokhin/Judge/Q-RAG-feedback")
+        "--qrag-repo", type=Path, default=Path("/path/to/Q-RAG-feedback")
     )
     parser.add_argument(
         "--log-level", choices=("DEBUG", "INFO", "WARNING"), default="INFO"

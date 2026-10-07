@@ -36,7 +36,7 @@ from typing import Any
 import gig_common as G
 
 
-DATA_ROOT = "/home/a.anokhin/Judge/datasets/data_sources"
+DATA_ROOT = "/path/to/data"
 
 MODEL_NAME = "Qwen/Qwen3-4B"
 N_GENERATIONS = 8

@@ -27,29 +27,29 @@
   "config": {
     "config_file": "sr1_triviaqa_zeroshot.yaml",
     "dataset": "sr1_triviaqa",
-    "hypothesis": "Итеративный прямой поиск стоковой GTE-башней задаёт стартовую точку на TriviaQA: разница с sr1-best-triviaqa и есть вклад обучения.",
+    "hypothesis": "Iterative direct search with the stock GTE tower sets the starting point on TriviaQA; the gap to sr1-best-triviaqa is the contribution of training.",
     "judge": {
       "answer_model": "Qwen3-4B",
       "base_url": "http://127.0.0.1:8010/v1",
       "judge_max_tokens": 100,
       "max_tokens": 1000,
-      "script": "/home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py",
+      "script": "/path/to/Q-RAG-feedback/answer_judge_llms.py",
       "shards": 32
     },
-    "label": "Прямой поиск, zero-shot GTE, 6 шагов, N=2",
+    "label": "Direct search, zero-shot GTE, 6 steps, N=2",
     "order": 47,
     "retrieve": {
       "auto_prepare": false,
       "batch_size": 64,
       "cuda_visible_devices": "0",
       "device": "cuda:0",
-      "index_dir": "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte",
-      "input": "/home/a.anokhin/Judge/full-wiki/runs/shared/searchr1/triviaqa.jsonl",
+      "index_dir": "/path/to/data/full-wiki/wiki18-gte",
+      "input": "/path/to/repo/runs/shared/searchr1/triviaqa.jsonl",
       "kind": "search",
       "log_candidates": "none",
       "max_chunks_per_title": 2,
       "model_dtype": "float32",
-      "qrag_repo": "/home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki",
+      "qrag_repo": "/path/to/repo/Q-RAG_for_full-wiki",
       "steps": 6,
       "top_k": 100
     },
@@ -58,7 +58,7 @@
   "created_utc": "2026-08-07T17:20:42.172621+00:00",
   "env": {
     "cuda_visible_devices": null,
-    "executable": "/home/a.anokhin/venvs/gpu/bin/python",
+    "executable": "/path/to/venv/bin/python",
     "faiss": null,
     "gpu": [
       "0, NVIDIA H200, 143771 MiB",
@@ -77,7 +77,7 @@
     "transformers": "4.57.6"
   },
   "finished_utc": "2026-08-07T17:33:12.454448+00:00",
-  "hypothesis": "Итеративный прямой поиск стоковой GTE-башней задаёт стартовую точку на TriviaQA: разница с sr1-best-triviaqa и есть вклад обучения.",
+  "hypothesis": "Iterative direct search with the stock GTE tower sets the starting point on TriviaQA; the gap to sr1-best-triviaqa is the contribution of training.",
   "inputs": {
     "action_artifact": null,
     "corpus": {
@@ -87,12 +87,12 @@
       "rows": 21015324,
       "sha256": "43d7d3f58d01d711d95b00b70584211eea639fa46802905a4b7e11cf0617752d",
       "size_bytes": 14393573105,
-      "source_path": "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/data00/jiajie_jin/flashrag_indexes/wiki_dpr_100w/wiki_dump.jsonl",
+      "source_path": "/path/to/data/full-wiki/data00/jiajie_jin/flashrag_indexes/wiki_dpr_100w/wiki_dump.jsonl",
       "tar_member": null,
       "validate_id_matches_row": true
     },
     "dataset": {
-      "path": "/home/a.anokhin/Judge/full-wiki/runs/shared/searchr1/triviaqa.jsonl",
+      "path": "/path/to/repo/runs/shared/searchr1/triviaqa.jsonl",
       "sha256": "7dc518b458bbcc798bbcc35895080cd2cb8e9d176bfe0120e3169a0e4fe5a41e",
       "size_bytes": 5219607
     },
@@ -102,7 +102,7 @@
       "model": "Alibaba-NLP/gte-multilingual-base",
       "resolved_revision": "9bbca17d9273fd0d03d5725c7a4b0f6b45142062"
     },
-    "index_dir": "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte"
+    "index_dir": "/path/to/data/full-wiki/wiki18-gte"
   },
   "metrics": {
     "chunks_max": 6,
@@ -128,21 +128,21 @@
   "stages": [
     {
       "argv": [
-        "/home/a.anokhin/venvs/gpu/bin/python",
+        "/path/to/venv/bin/python",
         "fullwiki_qrag.py",
         "search",
         "--index-dir",
-        "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte",
+        "/path/to/data/full-wiki/wiki18-gte",
         "--qrag-repo",
-        "/home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki",
+        "/path/to/repo/Q-RAG_for_full-wiki",
         "--device",
         "cuda:0",
         "--model-dtype",
         "float32",
         "--input",
-        "/home/a.anokhin/Judge/full-wiki/runs/shared/searchr1/triviaqa.jsonl",
+        "/path/to/repo/runs/shared/searchr1/triviaqa.jsonl",
         "--output",
-        "/home/a.anokhin/Judge/full-wiki/runs/2026-08-07-sr1-zeroshot-triviaqa/retrieval.jsonl",
+        "/path/to/repo/runs/2026-08-07-sr1-zeroshot-triviaqa/retrieval.jsonl",
         "--batch-size",
         "64",
         "--top-k",
@@ -170,8 +170,8 @@
     },
     {
       "argv": [
-        "/home/a.anokhin/venvs/gpu/bin/python",
-        "/home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py",
+        "/path/to/venv/bin/python",
+        "/path/to/Q-RAG-feedback/answer_judge_llms.py",
         "--retriever-logfile",
         "<shard>.jsonl",
         "--output-file",

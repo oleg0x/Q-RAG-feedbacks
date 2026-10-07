@@ -15,7 +15,7 @@ from rl.feedback.candidate_beta_feedback import CandidateBetaFeedback
 
 def main():
     # Load a few samples
-    data_path = "/home/a.anokhin/Judge/hotpot_candidate_train.jsonl"
+    data_path = "/path/to/workspace/hotpot_candidate_train.jsonl"
     samples = []
     with open(data_path) as f:
         for i, line in enumerate(f):

@@ -25,8 +25,8 @@ MAX_WORKERS = 64
 SAVE_EVERY = 500
 MAX_RETRIES = 3
 
-DEFAULT_INPUT = "/home/a.anokhin/Judge/Q-RAG-pqn/runs/May12_22-04-39_QRAG_musique/llm_eval_max_steps=6.json"
-DEFAULT_OUTPUT = "/home/a.anokhin/Judge/Q-RAG-pqn/runs/May12_22-04-39_QRAG_musique/llm_eval_with_llm_judge_32b_6.json"
+DEFAULT_INPUT = "/path/to/Q-RAG-pqn/runs/May12_22-04-39_QRAG_musique/llm_eval_max_steps=6.json"
+DEFAULT_OUTPUT = "/path/to/Q-RAG-pqn/runs/May12_22-04-39_QRAG_musique/llm_eval_with_llm_judge_32b_6.json"
 
 # JUDGE_SYSTEM_PROMPT = """You are a strict QA answer-equivalence judge.
 

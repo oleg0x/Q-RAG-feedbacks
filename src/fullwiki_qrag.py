@@ -1208,10 +1208,10 @@ class TwoStageFullWikiQrag(FullWikiQrag):
                 if already:
                     qrag_scores[row, np.isin(candidate_ids[row], already)] = -np.inf
             if self.max_chunks_per_title is not None:
-                # Титул закрывается не первым взятым чанком, а исчерпанием
-                # квоты: gold-предложение регулярно лежит во втором чанке той
-                # же статьи, и жёсткий запрет делает его недостижимым. При
-                # квоте 1 условие вырождается в прежнее «титул уже взят».
+                # A title is closed by exhausting its quota, not by the first
+                # chunk taken: the gold sentence often sits in the second chunk
+                # of the same article, and a hard ban makes it unreachable.
+                # With a quota of 1 this reduces to "title already taken".
                 for row, texts in enumerate(selected_texts):
                     if not texts:
                         continue
@@ -1289,12 +1289,12 @@ class TwoStageFullWikiQrag(FullWikiQrag):
 
 
 def load_and_validate_matrix_manifest(index_dir: Path) -> dict[str, Any]:
-    """Проверить, что индекс годится матрицей действий для прямого поиска.
+    """Check that the index can serve as the action matrix for direct search.
 
-    Это ``wiki18-gte``, а не Q-RAG-индекс: action-башня заморожена и побитово
-    равна стоковой GTE, поэтому векторы действий берутся прямо из его шардов.
-    Проверки поэтому другие, чем у :func:`load_and_validate_manifest`, — там
-    ждут ненормированный Q-RAG-индекс.
+    This is ``wiki18-gte``, not a Q-RAG index: the action tower is frozen and
+    bit-identical to stock GTE, so action vectors come straight from its
+    shards. Hence the checks differ from :func:`load_and_validate_manifest`,
+    which expects an unnormalized Q-RAG index.
     """
     manifest_path = index_dir / MANIFEST_FILE
     if not manifest_path.is_file():
@@ -1319,7 +1319,7 @@ def load_and_validate_matrix_manifest(index_dir: Path) -> dict[str, Any]:
 
 
 def load_action_matrix(index_dir: Path, manifest: dict[str, Any], device: str) -> Any:
-    """Загрузить ``M`` на устройство из шардов индекса (21 015 324 × 768, 60 ГиБ)."""
+    """Load ``M`` onto the device from the index shards (21,015,324 × 768, 60 GiB)."""
     import torch
 
     shard_dir = index_dir / manifest["embedding_cache"]["directory"]
@@ -1344,7 +1344,7 @@ def load_action_matrix(index_dir: Path, manifest: dict[str, Any], device: str) -
 
 
 def load_title_ids(path: Path, expected_rows: int, device: str) -> Any:
-    """Таблица титулов из ``build_title_table.py``: ``int32`` на строку индекса."""
+    """Title table from ``build_title_table.py``: one ``int32`` per index row."""
     import torch
 
     if not path.is_file():
@@ -1360,13 +1360,14 @@ def load_title_ids(path: Path, expected_rows: int, device: str) -> Any:
 
 
 def require_search_qrag_repo(qrag_repo: Path) -> None:
-    """Убедиться, что подключена копия ``Q-RAG_for_full-wiki``, а не оригинал.
+    """Make sure the ``Q-RAG_for_full-wiki`` copy is imported, not the original.
 
-    В дереве два экземпляра ``rl/`` с разным пулингом: read-only оригинал
-    считает masked mean и делит на 10, копия — CLS с L2-нормировкой, то есть
-    ровно то, чем собран ``wiki18-gte``. Подключить оригинал молча значит
-    получить состояние в чужом пространстве и провалить всю фазу 2. Отличает
-    их сигнатура: параметр ``normalize`` появился только в копии.
+    There are two ``rl/`` packages with different pooling: the read-only
+    original uses masked mean divided by 10, the copy uses CLS with L2
+    normalization, which is exactly what built ``wiki18-gte``. Silently
+    importing the original would put states in a foreign space and invalidate
+    every direct-search result. The signature tells them apart: only the copy
+    has the ``normalize`` parameter.
     """
     import inspect
 
@@ -1390,12 +1391,12 @@ def build_search_state_encoder(
     state_config: Path | None,
     state_source: str,
 ) -> tuple[Any, Any, int, str]:
-    """State-башня прямого поиска: из чекпоинта или стоковая GTE (zero-shot).
+    """State tower for direct search: from a checkpoint or stock GTE (zero-shot).
 
-    Zero-shot нужен лестнице фазы 2: без стартовой точки обученную цифру не
-    прочитать — 33% после обучения означают разное, если старт был 29% или 24%.
-    Собирается он той же архитектурой и тем же путём кодирования, что и
-    обучаемая башня, иначе сравнивались бы два разных пайплайна.
+    The zero-shot starting point is needed to interpret trained numbers: 33%
+    after training means different things if the start was 29% or 24%. It is
+    built with the same architecture and encoding path as the trained tower,
+    otherwise two different pipelines would be compared.
     """
     try:
         import torch
@@ -1430,9 +1431,9 @@ def build_search_state_encoder(
             max_state_segment_length = int(config.max_action_length_in_memory)
             separator = str(config.envs.get("separator", separator))
         else:
-            # Стоковая GTE в архитектуре обучаемой башни: те же 12 слоёв, тот
-            # же CLS-пулинг, normalize=false — на ранжирование норма запроса
-            # не влияет, а путь кодирования обязан совпадать с обучением.
+            # Stock GTE in the trained tower's architecture: the same 12
+            # layers, the same CLS pooling, normalize=false (the query norm
+            # does not affect ranking; the encoding path must match training).
             LOG.info("Zero-shot state tower: stock %s revision=%s", model_name, revision)
             encoder = BertPredictor(
                 bert=AutoModel.from_pretrained(
@@ -1492,13 +1493,13 @@ def verify_index_alignment(
     device: str,
     minimum_cosine: float = 0.99,
 ) -> float:
-    """Сверить башню с индексом на одной строке корпуса.
+    """Check the tower against the index on one corpus row.
 
-    В zero-shot башня побитово равна стоковой GTE, поэтому нормированный выход
-    обязан совпасть со строкой ``M`` с косинусом около 0.999999 — остаток
-    объясняется тем, что база кодировалась в fp16. Любой другой пулинг
-    (masked mean read-only оригинала) провалит проверку сразу, а не через
-    полчаса прогона.
+    In zero-shot mode the tower is bit-identical to stock GTE, so its
+    normalized output must match the ``M`` row with cosine about 0.999999; the
+    residual comes from the index having been encoded in fp16. Any other
+    pooling (the read-only original's masked mean) fails the check at once
+    rather than half an hour into the run.
     """
     import torch
 
@@ -1529,13 +1530,14 @@ def verify_index_alignment(
 
 
 class DirectSearchRetriever:
-    """Итеративный плотный ретривер: state-башня ищет по всем строкам ``M``.
+    """Iterative dense retriever: the state tower searches all rows of ``M``.
 
-    Один прямой проход башни даёт и запрос поиска, и все Q-скоры: скор
-    ``s @ M[i]`` и оценка ``Q(s, a_i)`` — одно и то же число, рассогласоваться
-    нечему. Маска применяется **до** ``topk``: запрос содержит текст уже
-    выбранного чанка, поэтому его соседи по статье оказываются ближайшими
-    соседями запроса и без маски забили бы пул целиком.
+    One forward pass of the tower yields both the search query and all
+    Q-scores: the score ``s @ M[i]`` and the estimate ``Q(s, a_i)`` are the
+    same number, so they cannot disagree. The mask is applied **before**
+    ``topk``: the query contains the text of already selected chunks, so their
+    neighbours from the same article become the query's nearest neighbours
+    and would otherwise fill the whole pool.
     """
 
     def __init__(
@@ -1602,9 +1604,9 @@ class DirectSearchRetriever:
                 for title_id in titles:
                     scores[row].masked_fill_(self.title_ids == int(title_id), -float("inf"))
             top_k = min(top_k, scores.shape[1])
-            # Замаскированная строка не должна добивать пул до K: она попала бы
-            # в лог кандидатов как доступная и завысила бы всё, что по этому
-            # логу считается.
+            # A masked row must not pad the pool up to K: it would enter the
+            # candidate log as available and inflate everything computed from
+            # that log.
             available = int(torch.isfinite(scores).sum(dim=1).min())
             if available < top_k:
                 raise RuntimeError(
@@ -1801,12 +1803,12 @@ def batched(
 
 
 def chunks_per_title(args: argparse.Namespace) -> int | None:
-    """Квота чанков на одну статью из флагов CLI. ``None`` — без квоты.
+    """Per-title chunk quota from the CLI flags; ``None`` means no quota.
 
-    Два флага вместо одного: ``--dedupe-titles/--no-dedupe-titles`` — это
-    прежний вкл/выкл, он остался ради ранов и cmd.sh, написанных до квоты, а
-    ``--max-chunks-per-title`` задаёт её величину. Значение 1 воспроизводит
-    прежнее поведение чанк в чанк.
+    Two flags instead of one: ``--dedupe-titles/--no-dedupe-titles`` is the
+    original on/off switch, kept for runs and cmd.sh files written before the
+    quota, while ``--max-chunks-per-title`` sets its size. A value of 1
+    reproduces the original behaviour chunk for chunk.
     """
     if not args.dedupe_titles:
         return None
@@ -1974,13 +1976,12 @@ def write_retrieval_records(
     args: argparse.Namespace,
     mode: str,
 ) -> int:
-    """Общий вывод ``retrieval.jsonl`` для батчей любого ретривера.
+    """Shared ``retrieval.jsonl`` writer for batches from any retriever.
 
-    Тело почти повторяет цикл внутри :func:`command_retrieve`, и это
-    сознательно: `retrieve` дважды правился с побайтовой регрессией по
-    docs/pipeline.md §7, и переписать его под общий помощник значит потребовать
-    третью — на GPU, ради нулевого выигрыша. Новый режим пользуется отдельной
-    копией, старый остаётся неприкосновенным.
+    The body nearly duplicates the loop inside :func:`command_retrieve` on
+    purpose: `retrieve` is pinned by byte-for-byte regressions, and moving it
+    onto a shared helper would require yet another GPU regression for no
+    gain. The new mode uses a separate copy; the old one stays untouched.
     """
     output_path = args.output.expanduser().resolve() if args.output else None
     if output_path is not None:
@@ -2025,7 +2026,7 @@ def write_retrieval_records(
 
 
 def command_search(args: argparse.Namespace) -> int:
-    """Итеративный прямой поиск state-башней по всем строкам матрицы."""
+    """Iterative direct search with the state tower over all matrix rows."""
     if args.top_k <= 0 or args.steps <= 0 or args.batch_size <= 0:
         raise ValueError("--top-k, --steps, and --batch-size must be positive")
     if args.max_chunks_per_title < 1:
@@ -2085,8 +2086,8 @@ def command_search(args: argparse.Namespace) -> int:
     matrix = load_action_matrix(index_dir, manifest, args.device)
 
     if checkpoint is None and args.verify_alignment:
-        # Только zero-shot: у обученной башни расхождение с индексом ожидаемо
-        # и как раз является предметом измерения.
+        # Zero-shot only: for a trained tower a mismatch with the index is
+        # expected and is precisely what is being measured.
         verify_index_alignment(
             encoder,
             tokenizer,
@@ -2224,10 +2225,10 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     retrieve_parser.add_argument("--output", type=Path, default=None)
     retrieve_parser.set_defaults(handler=command_retrieve)
 
-    # Линия A: state-башня сама ищет по всем строкам матрицы. Отдельная
-    # подкоманда, а не флаг у `retrieve`: индекс тут другой (wiki18-gte как
-    # матрица действий), кандидатов первой стадии нет вовсе, и любое
-    # пересечение с флагами `retrieve` меняло бы его поведение.
+    # Line A: the state tower itself searches all matrix rows. A separate
+    # subcommand rather than a `retrieve` flag: the index is different
+    # (wiki18-gte as the action matrix), there are no first-stage candidates
+    # at all, and any overlap with `retrieve` flags would change its behaviour.
     search_parser = subparsers.add_parser(
         "search",
         help=(

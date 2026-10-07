@@ -80,13 +80,12 @@ def compute_returns(rewards, values_next, not_done, gamma=0.99, lambda_coef=.0):
     return returns
 
 class AlphaSchedule:
-    """Расписание температуры Boltzmann, не привязанное к learning rate.
+    """Boltzmann temperature schedule, decoupled from the learning rate.
 
-    Раньше α пересчитывалась как `alpha_start * lr(t) / lr(0)`. При warmup в
-    1000 шагов это означало почти нулевую температуру в начале обучения и
-    рост к середине рана — расписание exploration было перевёрнуто. Теперь
-    это явная ручка конфига: `constant` или линейный спад от `start` к
-    `final` за `total` оптимизационных шагов после `warmup`.
+    Deriving α as `alpha_start * lr(t) / lr(0)` gives a near-zero temperature
+    during LR warmup and a peak mid-run, i.e. an inverted exploration schedule.
+    Instead this is an explicit config knob: `constant`, or a linear decay from
+    `start` to `final` over `total` optimizer steps after `warmup`.
     """
 
     KINDS = ("constant", "linear")
@@ -146,9 +145,8 @@ class PQN(object):
         self.Lambda = config.pqn.hyperparams.Lambda
         self.tau = config.pqn.hyperparams.tau
         self.start_lr = config.pqn.optimizer.lr
-        # Пул политики: сколько действий она вообще рассматривает. Раньше
-        # число было зашито пятёркой, и на пуле в сто кандидатов политика
-        # видела 5% множества действий.
+        # Policy pool: how many actions the policy considers at all. A hardcoded
+        # 5 would let it see only 5% of the actions on a 100-candidate pool.
         self.top_k_actions = int(
             OmegaConf.select(config, "pqn.hyperparams.top_k_actions", default=5)
         )
@@ -198,13 +196,13 @@ class PQN(object):
             )
         param_groups = [{"params": tower_params}]
         if head_params:
-            # Скаляры калибровки в своей группе с быстрым lr: рассогласование
-            # масштаба Q с наградой должно чиниться головой за единицы шагов,
-            # иначе давление масштаба снова пойдёт в веса башни.
+            # Calibration scalars get their own group with a fast lr: a Q/reward
+            # scale mismatch must be fixed by the head within a few steps,
+            # otherwise the scale pressure goes back into the tower weights.
             param_groups.append({"params": head_params, "lr": float(q_head["lr"])})
-        # _partial_: hydra не должен видеть группы параметров — переданные в
-        # instantiate kwargs он оборачивает в DictConfig, и AdamW падает на
-        # «optimizer can only optimize Tensors».
+        # _partial_: hydra must not see the parameter groups. It wraps kwargs
+        # passed to instantiate in DictConfig, and AdamW then fails with
+        # "optimizer can only optimize Tensors".
         self.critic_optim = instantiate(config.pqn.optimizer, _partial_=True)(param_groups)
         self.scheduler = instantiate(config.pqn.scheduler, optimizer=self.critic_optim)
        
@@ -217,8 +215,8 @@ class PQN(object):
             state_embed_target, self.critic, top_k_actions=self.top_k_actions
         ).to(torch.get_default_device())
         if self.critic.calibrated:
-            # EMA-копии калибровки для таргета: V(s') обязан считаться тем же
-            # масштабом, которым жил target-критик, а не сегодняшним онлайн-w.
+            # EMA copies of the calibration for the target: V(s') must use the
+            # scale of the target critic, not the current online w.
             self.q_scale_target = self.critic.q_scale.detach().clone()
             self.q_bias_target = self.critic.q_bias.detach().clone()
         self.action_embed_target = ActionEmbedTarget(action_embed_target, self.critic).to(torch.get_default_device())
@@ -302,15 +300,16 @@ class PQN(object):
 
             qf_1, qf_2 = critic(state_batch, action_batch)
             qf_1, qf_2 = qf_1.squeeze(), qf_2.squeeze()
-            # С таргетом сравниваются калиброванные головы: без w,b логиты
-            # s·M ≈ ±20 при таргетах [0,1], и MSE убивает геометрию башни.
+            # The calibrated heads are compared with the target: without w,b the
+            # logits s·M are ≈ ±20 against targets in [0,1], and MSE wrecks the
+            # tower geometry.
             h_1, h_2 = critic.head_values(qf_1, qf_2)
             if valid_batch is None:
                 qf_loss = 0.5 * F.mse_loss(h_1, reward_batch) + 0.5 * F.mse_loss(h_2, reward_batch)
             else:
-                # Переход без награды (сервер не ответил) выпадает из лосса
-                # целиком, а не приходит нулём: ноль означал бы «контекст
-                # бесполезен», и критик учился бы на выдуманном сигнале.
+                # A transition without a reward (the server did not respond) is
+                # dropped from the loss rather than counted as zero: zero would
+                # mean "context is useless" and train the critic on a fake signal.
                 weight = valid_batch.reshape(-1).to(dtype=qf_1.dtype)
                 divisor = weight.sum().clamp(min=1.0)
                 qf_loss = (
@@ -479,7 +478,7 @@ class PQN(object):
         )
 
         if isinstance(action_batch, Tensor):
-            # Линия A: действие — готовая строка `M`, перекодировать нечего.
+            # Line A: the action is already a row of `M`; nothing to re-encode.
             critic_actions = action_batch
         else:
             critic_actions = TextMemoryItem(
@@ -596,8 +595,8 @@ class PQN(object):
 
         # restore α, which may have changed during training
         self.alpha = checkpoint.get("alpha", self.alpha)
-        # Позиция на расписании α: без неё дообучение с чекпоинта начинало бы
-        # расписание заново, даже когда α сохранена.
+        # Position on the α schedule: without it, resuming from a checkpoint
+        # would restart the schedule even though α itself is saved.
         self._optim_step = int(checkpoint.get("optim_step", self._optim_step))
 
         print(f"[INFO] PQN checkpoint loaded  ← {checkpoint_path}")

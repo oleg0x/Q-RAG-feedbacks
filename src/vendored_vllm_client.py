@@ -1,8 +1,8 @@
-# Вендорная байт-копия ../Q-RAG-feedback/vLLM_clients/sync_vllm_client.py
-# (в Q-RAG_for_full-wiki лежит тот же файл байт в байт). Копия, а не свой
-# клиент: иначе регрессия форка против оригинала проверяла бы наш транспорт,
-# а не нашу логику. Ниже этой шапки — оригинал без изменений; дрейф копии
-# ловит tests/test_vendored.py там, где оригинал доступен.
+# Vendored byte copy of ../Q-RAG-feedback/vLLM_clients/sync_vllm_client.py
+# (Q-RAG_for_full-wiki holds the same file byte for byte). A copy rather than
+# our own client: otherwise a regression of the fork against the original
+# would test our transport, not our logic. Below this header the original is
+# unchanged; tests/test_vendored.py catches drift where it is available.
 """Synchronous requests-based client for an OpenAI-compatible vLLM server."""
 
 import os

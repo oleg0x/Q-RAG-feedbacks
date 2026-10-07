@@ -1,33 +1,34 @@
-# Oracle по титулам: из сохранённых 100 кандидатов GTE берутся 4 чанка,
-# максимизирующих покрытие gold-титулов (тай-брейк — ранг GTE).
+# Title oracle: from the saved 100 GTE candidates, the 4 chunks that maximise
+# gold-title coverage are taken (ties broken by GTE rank).
 #
-# Что это НЕ. Это не абсолютный потолок задачи и не oracle по ответу: выбор
-# оптимален только по титулам, а нужное предложение внутри 100-словного чанка
-# может отсутствовать. Строка отвечает ровно на один вопрос — сколько ответов
-# в принципе можно вытащить идеальным реранкингом над этим пулом, и
-# сравнивается с GTE top-4 на том же бюджете чанков.
+# This is neither the absolute task ceiling nor an answer oracle: the selection
+# is optimal only with respect to titles, and the needed sentence may be
+# missing from the 100-word chunk. The row answers one question, how many
+# answers ideal reranking over this pool can recover, and is compared with GTE
+# top-4 at the same chunk budget.
 #
-# Дедупликация титулов соблюдается, как во всех опубликованных ранах.
-label: oracle по титулам, 4 чанка
+# Title deduplication is kept, as in all published runs.
+label: title oracle, 4 chunks
 slug: pool-oracle-titles-k4
 
 order: 74
 hypothesis: >-
-  Идеальный выбор 4 чанков из top-100 GTE ограничивает сверху всё, что
-  может дать реранкинг над этим пулом; разрыв с GTE top-4 — это цена
-  ранжирования, а не покрытия.
+  An ideal selection of 4 chunks from GTE top-100 upper-bounds everything
+  reranking over this pool can achieve; the gap to GTE top-4 is the cost of
+  ranking, not of coverage.
 
 retrieve:
   kind: pool
   source_run: 2026-08-02-gte-pool-diag
 
-  # Корпус и таблица смещений: row ID пула резолвятся в тексты чанков той же
-  # таблицей, которой пользовался сам ретривал.
-  index_dir: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-qrag-jul21-best-raw
+  # Corpus and offset table: pool row IDs are resolved to chunk texts with
+  # the same table the retrieval used.
+  index_dir: /path/to/data/full-wiki/wiki18-qrag-jul21-best-raw
   steps: 4
 
 judge:
-  script: /home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py
+  script: src/answer_judge.py
+  contract: v1
   base_url: http://127.0.0.1:8010/v1
   answer_model: Qwen3-4B
   max_tokens: 1000

@@ -19,7 +19,7 @@ PYTHON="python3"
 SCRIPT="eval_retriever.py"
 
 for N in "${NUM_SENTENCES_LIST[@]}"; do
-  echo "=== Запуск с envs.num_sentences=${N} ==="
+  echo "=== Run with envs.num_sentences=${N} ==="
   CUDA_VISIBLE_DEVICES="$GPU_ID" "$PYTHON" "$SCRIPT" \
     pretrained_path="$PRETRAINED_PATH" \
     envs.num_sentences="$N" \

@@ -1,45 +1,46 @@
-# Уровень 1 ablation квоты дедупликации: обученная башня линии A
-# (model_best) на полном dev 2WikiMultiHopQA, всё как в
-# search_best_2wiki.yaml, отличается ровно одно поле — max_chunks_per_title.
+# Per-title quota ablation: the trained line A tower (model_best) on the full
+# 2WikiMultiHopQA dev set, identical to search_best_2wiki.yaml except for
+# max_chunks_per_title.
 #
-# Зачем: N=2 выбрано в фазе 0 по замеру на стоковой GTE top-6 (+0.55 п.п. EM,
-# McNemar z = +1.7, docs/training.md:90) и с тех пор не проверялось ни на
-# обученной башне, ни на других датасетах. При этом квота — рабочая ручка, а
-# не страховка: по сохранённым retrieval.jsonl второй чанк уже взятого титула
-# берут 76.8% эпизодов на HotpotQA, 72.0% на 2Wiki и 76.4% на MuSiQue
-# (18.8% / 17.1% / 18.1% всех взятых чанков при потолке 50%).
+# N=2 was chosen from a measurement on stock GTE top-6 (+0.55 pp EM, McNemar
+# z = +1.7) and has not been tested on the trained tower or on other datasets.
+# The quota is an active knob, not a safeguard: in the saved retrieval.jsonl a
+# second chunk of an already taken title is used in 76.8% of episodes on
+# HotpotQA, 72.0% on 2Wiki and 76.4% on MuSiQue (18.8% / 17.1% / 18.1% of all
+# selected chunks, with a ceiling of 50%).
 #
-# N=6 при steps=6 — это «квоты нет»: счётчик чанков на титул не успевает
-# дойти до шести за шесть шагов, поэтому маска не срабатывает ни разу.
-# Отдельного флага у подкоманды search нет, а --no-dedupe-titles есть только
-# у retrieve; повтор той же строки запрещён независимо от квоты
-# (blocked_rows), поэтому один и тот же чанк дважды эпизод не возьмёт.
+# N=6 with steps=6 means "no quota": the per-title chunk counter cannot reach
+# six in six steps, so the mask never fires. The search subcommand has no
+# separate flag (--no-dedupe-titles exists only for retrieve); repeating the
+# same row is forbidden regardless of the quota (blocked_rows), so an episode
+# never takes the same chunk twice.
 #
-# Три датасета берутся не для широты, а для мощности. Эффект ожидается около
-# 0.5 п.п.; на одном HotpotQA при ~550 дискордантных парах McNemar разрешает
-# только ~0.63 п.п. на z = 2, а 22 398 пар вместе — около 0.35 п.п. Главными
-# читать F1 и judge (парный t): на том же размене фазы 0 EM дал z = +1.7, а
-# F1 — t = +3.04 на тех же данных.
-label: Прямой поиск, обученная башня, 6 шагов, без квоты
+# Three datasets are used for statistical power, not breadth. The expected
+# effect is about 0.5 pp; on HotpotQA alone (~550 discordant pairs) McNemar
+# resolves only ~0.63 pp at z = 2, while all 22,398 pairs together resolve
+# about 0.35 pp. F1 and judge (paired t) are the primary metrics: in the
+# original quota measurement EM gave z = +1.7 while F1 gave t = +3.04 on the
+# same data.
+label: Direct search, trained tower, 6 steps, no quota
 slug: lineA-best-2wiki-noquota
 dataset: 2wiki_dev
 
 order: 48.2
 hypothesis: >-
-  Без квоты обученная башня теряет в answer-метриках: телеметрия обучения
-  показывает, что к концу рана глобальный аргмакс запроса замаскирован в
-  54.6% шагов, то есть политика всё сильнее хочет взять запрещённое, и маска
-  несёт нагрузку, а не страхует. Если так, снятие квоты схлопнет эпизод в
-  меньшее число статей и уронит title recall сильнее, чем поднимет
-  EM | попали.
+  Without the quota the trained tower loses on answer metrics: training
+  telemetry shows that by the end of the run the global argmax of the query is
+  masked in 54.6% of steps, i.e. the policy increasingly wants the forbidden
+  chunk and the mask carries load rather than acting as a safeguard. If so,
+  removing the quota collapses an episode into fewer articles and lowers title
+  recall more than it raises EM given a hit.
 
 retrieve:
   kind: search
-  index_dir: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte
-  qrag_repo: /home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki
-  checkpoint: /home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki/runs/Aug03_12-44-38_lineA_main/model_best.pt
+  index_dir: /path/to/data/full-wiki/wiki18-gte
+  qrag_repo: Q-RAG_for_full-wiki
+  checkpoint: Q-RAG_for_full-wiki/runs/Aug03_12-44-38_lineA_main/model_best.pt
   state_source: critic
-  input: /home/a.anokhin/Judge/datasets/data_sources/2WikiMultiHopQA/data_ids_april7/dev.json
+  input: /path/to/data/2WikiMultiHopQA/data_ids_april7/dev.json
   cuda_visible_devices: "0"
   device: cuda:0
   model_dtype: float32
@@ -48,13 +49,14 @@ retrieve:
   steps: 6
   max_chunks_per_title: 6
 
-  # none, а не full: покандидатная диагностика этой серии не нужна, а
-  # сохранённые пулы N=2 для неё уже лежат в ранах 2026-08-05-lineA-best-*.
+  # none rather than full: per-candidate diagnostics are not needed for
+  # this series, and the saved N=2 pools are already in the lineA-best-* runs.
   log_candidates: none
   auto_prepare: false
 
 judge:
-  script: /home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py
+  script: src/answer_judge.py
+  contract: v1
   base_url: http://127.0.0.1:8010/v1
   answer_model: Qwen3-4B
   max_tokens: 1000

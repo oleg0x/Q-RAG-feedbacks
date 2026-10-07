@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
-"""Общие помощники реестра ранов: пути, манифесты, идентичность кода и входов.
+"""Shared helpers for the run registry: paths, manifests, code and input identity.
 
-Реестр устроен так: каждый ран — каталог ``runs/<YYYY-MM-DD>-<slug>/``. Мелкие
-текстовые файлы (``manifest.json``, ``metrics.json``, ``cmd.sh``, ``notes.md``)
-версионируются git и образуют историю экспериментов; тяжёлая нагрузка
-(``retrieval.jsonl``, ``answer_judge.json``, ``log.txt``) лежит рядом, но вне
-репозитория.
+Each run is a directory ``runs/<YYYY-MM-DD>-<slug>/``. Small text files
+(``manifest.json``, ``metrics.json``, ``cmd.sh``, ``notes.md``) are tracked by
+git and form the experiment history; heavy outputs (``retrieval.jsonl``,
+``answer_judge.json``, ``log.txt``) live next to them but outside the
+repository.
 
-Модуль намеренно не тянет torch и не считает SHA-256 корпуса: идентичность
-корпуса и энкодера уже зафиксирована в манифесте индекса, который собрал
-``build_index_wiki_gte.py`` / ``build_index_wiki_qrag.py``, и берётся оттуда.
+The module deliberately avoids torch and does not compute the corpus SHA-256:
+corpus and encoder identity are already recorded in the index manifest written
+by ``build_index_wiki_gte.py`` / ``build_index_wiki_qrag.py`` and are read
+from there.
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any, Iterator
 
@@ -29,8 +31,8 @@ from build_index_wiki_gte import (
 )
 
 
-# Модули лаборатории лежат в src/, а реестр, конфиги и документы — в корне
-# репозитория, поэтому REPO поднимается на уровень выше этого файла.
+# Modules live in src/, while the registry, configs and docs are at the
+# repository root, so REPO is one level above this file.
 SRC = Path(__file__).resolve().parent
 REPO = SRC.parent
 RUNS = REPO / "runs"
@@ -48,20 +50,20 @@ JUDGE_FILE = "answer_judge.json"
 COVERAGE_FILE = SHARED / "hotpotqa_dev_title_coverage.json"
 INDEX_FILE = RUNS / "INDEX.md"
 
-# Датасеты, на которых считается витрина. Ключ пишется в конфиг рана полем
-# ``dataset``; от него зависят и потолок покрытия, и то, в какую таблицу
-# RESULTS.md попадёт строка. Раны разных датасетов несравнимы между собой:
-# у них разные вопросы, разное число примеров и разный потолок корпуса.
+# Datasets the results tables are built for. The key goes into the run config
+# as ``dataset``; it determines both the coverage ceiling and which RESULTS.md
+# table the row lands in. Runs on different datasets are not comparable: they
+# differ in questions, number of examples and corpus ceiling.
 #
-# ``coverage`` необязателен. Потолок покрытия считается по gold-титулам, а у
-# семи eval-сплитов Search-R1 их нет ни у одного (см. build_searchr1_eval.py),
-# поэтому у них ``coverage: None`` — и ``title_em``, и ``share_of_ceiling``
-# в таких ранах остаются ``null``, а не превращаются в 100%.
+# ``coverage`` is optional. The coverage ceiling is computed from gold titles,
+# and none of the seven Search-R1 eval splits has them (see
+# build_searchr1_eval.py), so they have ``coverage: None``; ``title_em`` and
+# ``share_of_ceiling`` then stay ``null`` instead of turning into 100%.
 #
-# ``aliases`` — файл датасета, из которого ``export_eval_json.collect_aliases``
-# достаёт допустимые ответы помимо основного. Он нужен там, где официальный
-# эвал считает EM максимумом по алиасам: без него TriviaQA с её четырнадцатью
-# ответами на вопрос занижена в разы.
+# ``aliases`` is the dataset file from which ``export_eval_json.collect_aliases``
+# reads acceptable answers besides the primary one. It is needed where the
+# official eval takes EM as the maximum over aliases: without it TriviaQA,
+# with its fourteen answers per question, is understated several-fold.
 DEFAULT_DATASET = "hotpotqa_dev_fullwiki"
 SEARCHR1 = SHARED / "searchr1"
 DATASETS: dict[str, dict[str, Any]] = {
@@ -80,10 +82,10 @@ DATASETS: dict[str, dict[str, Any]] = {
         "examples": 2417,
         "coverage": SHARED / "musique_ans_dev_title_coverage.json",
     },
-    # Семь бенчмарков Search-R1 из одного test.parquet. Отдельные ключи, а не
-    # переиспользование трёх верхних: вопросы там нормализованы (у 267 из них
-    # дописан «?»), голд взят из golden_answers, а title-метрик нет вовсе —
-    # смешивать такие строки со старыми в одной таблице нельзя.
+    # Seven Search-R1 benchmarks from a single test.parquet. Separate keys
+    # rather than reusing the three above: the questions are normalized (267
+    # of them got a trailing "?"), gold comes from golden_answers and there are
+    # no title metrics, so these rows must not share a table with the others.
     "sr1_nq": {
         "label": "NQ (Search-R1 test)",
         "examples": 3610,
@@ -130,8 +132,9 @@ DATASETS: dict[str, dict[str, Any]] = {
 
 MANIFEST_SCHEMA_VERSION = 1
 
-# Скрипты, чьё содержимое влияет на результат рана. Хеши попадают в манифест,
-# чтобы «каким кодом получен этот файл» отвечалось без git-археологии.
+# Scripts whose content affects a run's result. Their hashes go into the
+# manifest, so "which code produced this file" is answered without git
+# archaeology.
 PIPELINE_SCRIPTS = (
     "fullwiki_qrag.py",
     "build_eval_variants.py",
@@ -139,37 +142,38 @@ PIPELINE_SCRIPTS = (
     "build_index_wiki_gte.py",
     "build_index_wiki_qrag.py",
     "report_phase0.py",
-    # Ридер и судья с 2026-08-08 — наш форк, а не read-only оригинал: от его
-    # содержимого зависят EM, F1 и reward каждого рана.
+    # The reader and judge are our fork, not the original script: the EM, F1
+    # and reward of every run depend on its content.
     "answer_judge.py",
     "exp.py",
 )
 
-VENV_PYTHON = Path("/home/a.anokhin/venvs/gpu/bin/python")
+# Interpreter used for pipeline stages; defaults to the one running exp.py.
+VENV_PYTHON = Path(os.environ.get("QRAG_PYTHON", sys.executable))
 
 
 def pipeline_script(name: str) -> Path:
-    """Путь к скрипту пайплайна: `exp.py` в корне, остальные модули в `src/`.
+    """Path to a pipeline script: `exp.py` at the root, other modules in `src/`.
 
-    Имена в `PIPELINE_SCRIPTS` намеренно остались базовыми, без каталога: они
-    же служат ключами в манифесте, и переезд модулей в `src/` не должен
-    расщеплять реестр на «до» и «после» по имени ключа.
+    Names in `PIPELINE_SCRIPTS` deliberately stay bare, without a directory:
+    they also serve as manifest keys, and moving modules to `src/` must not
+    split the registry into "before" and "after" by key name.
     """
     return REPO / name if name == "exp.py" else SRC / name
 
 
 def run_dir(run_id: str) -> Path:
     if "/" in run_id or run_id.startswith("."):
-        raise ValueError(f"Некорректный run_id: {run_id!r}")
+        raise ValueError(f"Invalid run_id: {run_id!r}")
     return RUNS / run_id
 
 
 def iter_run_dirs() -> Iterator[Path]:
-    """Каталоги ранов в лексикографическом порядке (он же хронологический).
+    """Run directories in lexicographic (hence chronological) order.
 
-    Наверху runs/ лежат только раны главной таблицы README, остальные — в
-    runs/runs_history/. Реестр и витрина строятся по обоим уровням, поэтому
-    переезд рана между ними не меняет ни одной строки таблиц.
+    Only the runs of the main README table sit at the top of runs/; the rest
+    are in runs/runs_history/. The registry and results tables are built from
+    both levels, so moving a run between them changes no table row.
     """
     roots = (RUNS, RUNS / "runs_history")
     candidates = (
@@ -202,7 +206,7 @@ def write_metrics(run: Path, metrics: dict[str, Any]) -> None:
 
 
 def file_identity(path: Path, *, hash_file: bool = True) -> dict[str, Any]:
-    """Идентичность файла. ``hash_file=False`` для многогигабайтных входов."""
+    """File identity. ``hash_file=False`` for multi-gigabyte inputs."""
     stat = path.stat()
     identity: dict[str, Any] = {
         "path": str(path.resolve()),
@@ -230,11 +234,11 @@ def git(*arguments: str) -> str | None:
 
 
 def code_identity() -> dict[str, Any]:
-    """Коммит, признак незакоммиченных правок и хеши скриптов пайплайна."""
+    """Commit, uncommitted-changes flag and pipeline script hashes."""
     status = git("status", "--porcelain", "--", "*.py")
-    # git() снимает пробелы по краям, поэтому у первой строки может пропасть
-    # ведущий пробел статуса (" M file" → "M file"). Режем по первому пробелу,
-    # а не по фиксированной позиции.
+    # git() strips surrounding whitespace, so the first line may lose the
+    # leading space of its status (" M file" → "M file"). Split on the first
+    # whitespace rather than at a fixed position.
     return {
         "git_commit": git("rev-parse", "HEAD"),
         "git_dirty": bool(status),
@@ -273,8 +277,6 @@ def gpu_identity() -> list[str]:
 
 
 def env_identity() -> dict[str, Any]:
-    import sys
-
     return {
         "python": ".".join(str(part) for part in sys.version_info[:3]),
         "executable": sys.executable,
@@ -289,10 +291,11 @@ def env_identity() -> dict[str, Any]:
 
 
 def index_identity(index_dir: Path) -> dict[str, Any]:
-    """Корпус и энкодер берутся из манифеста индекса, а не пересчитываются.
+    """Corpus and encoder identity come from the index manifest, not recomputed.
 
-    SHA-256 корпуса Wiki-18 — это 14 ГБ чтения; он уже посчитан при сборке
-    индекса и записан в его манифест вместе с revision энкодера.
+    The SHA-256 of the Wiki-18 corpus means reading 14 GB; it was computed
+    when the index was built and recorded in its manifest together with the
+    encoder revision.
     """
     manifest_path = index_dir / "manifest.json"
     if not manifest_path.exists():
@@ -313,11 +316,11 @@ def index_identity(index_dir: Path) -> dict[str, Any]:
 
 
 def dataset_key(config: dict[str, Any]) -> str:
-    """Датасет рана. Отсутствие поля означает HotpotQA — так было до 2026-08-05.
+    """Dataset of a run; a missing field means HotpotQA.
 
-    Умолчание здесь безопасно ровно потому, что оно проверяемо: все раны
-    реестра, заведённые до появления поля, сделаны на
-    ``hotpot_dev_fullwiki_v1.json`` и содержат 7 405 примеров.
+    The default is safe precisely because it is verifiable: every registry run
+    created before the field existed used ``hotpot_dev_fullwiki_v1.json`` and
+    has 7,405 examples.
     """
     return str(config.get("dataset") or DEFAULT_DATASET)
 
@@ -325,20 +328,20 @@ def dataset_key(config: dict[str, Any]) -> str:
 def dataset_meta(dataset: str) -> dict[str, Any]:
     if dataset not in DATASETS:
         raise KeyError(
-            f"Неизвестный датасет {dataset!r}; известны: {', '.join(DATASETS)}. "
-            "Новый датасет добавляется в DATASETS; файл покрытия и таблица "
-            "алиасов необязательны, но если их нет — это должно быть решением, "
-            "а не забывчивостью."
+            f"Unknown dataset {dataset!r}; known: {', '.join(DATASETS)}. "
+            "A new dataset is added to DATASETS; the coverage file and alias "
+            "table are optional, but leaving them out should be a decision, "
+            "not an oversight."
         )
     return DATASETS[dataset]
 
 
 def coverage_ceiling(dataset: str = DEFAULT_DATASET) -> float | None:
-    """Потолок покрытия корпуса: доля вопросов, чьи gold-титулы есть в Wiki-18.
+    """Corpus coverage ceiling: share of questions whose gold titles are in Wiki-18.
 
-    Потолок свой у каждого датасета (HotpotQA 81.67%, 2Wiki 51.05%), поэтому
-    доля потолка сравнима только внутри одного датасета. ``None`` означает,
-    что у датасета нет gold-титулов и потолок считать не из чего.
+    Each dataset has its own ceiling (HotpotQA 81.67%, 2Wiki 51.05%), so the
+    share of ceiling is comparable only within one dataset. ``None`` means the
+    dataset has no gold titles to compute a ceiling from.
     """
     path = dataset_meta(dataset).get("coverage")
     if path is None:
@@ -347,10 +350,11 @@ def coverage_ceiling(dataset: str = DEFAULT_DATASET) -> float | None:
 
 
 def alias_table(dataset: str = DEFAULT_DATASET) -> dict[str, list[str]] | None:
-    """Допустимые ответы помимо основного, по id примера.
+    """Acceptable answers besides the primary one, by example id.
 
-    ``None`` — у датасета алиасов нет и alias-метрики считать не нужно; они
-    совпали бы с основными и только засоряли бы таблицу лишней колонкой.
+    ``None`` means the dataset has no aliases and alias metrics are not needed:
+    they would equal the primary ones and only clutter the table with an
+    extra column.
     """
     path = dataset_meta(dataset).get("aliases")
     if path is None:
@@ -365,12 +369,12 @@ def score_judge_file(
     ceiling: float | None = None,
     dataset: str = DEFAULT_DATASET,
 ) -> dict[str, Any]:
-    """Метрики рана, пересчитанные из reader/judge JSON.
+    """Run metrics recomputed from the reader/judge JSON.
 
-    Тонкая обёртка над ``report_phase0.score_run``: один и тот же код считает и
-    строку итоговой таблицы, и ``metrics.json`` рана, поэтому они не могут
-    разойтись. Пер-сэмпловые векторы EM выбрасываются — они нужны только для
-    парных тестов и весят как сам ран.
+    A thin wrapper over ``report_phase0.score_run``: the same code computes
+    both the results table row and the run's ``metrics.json``, so they cannot
+    diverge. Per-sample vectors are dropped: they are only needed for paired
+    tests and weigh as much as the run itself.
     """
     from report_phase0 import score_run
 

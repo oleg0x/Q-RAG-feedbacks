@@ -8,11 +8,11 @@ import report_phase0
 
 
 def judge_record(**overrides) -> dict:
-    """Запись судьи, у которой EM и F1 согласованы с текстами.
+    """Judge record whose EM and F1 agree with the texts.
 
-    Согласованность обязательна: ``score_run`` при заданных алиасах сверяет
-    пересчитанные по основному ответу EM и F1 с теми, что лежат в файле, и
-    падает при расхождении. Рассогласованная фикстура ловила бы не то.
+    Agreement is required: with aliases given, ``score_run`` checks EM and F1
+    recomputed against the primary answer against those in the file and fails
+    on a mismatch. An inconsistent fixture would test the wrong thing.
     """
     record = {
         "id": "nq_test_0",
@@ -28,7 +28,7 @@ def judge_record(**overrides) -> dict:
 
 
 def matching_record(**overrides) -> dict:
-    """Запись, где предсказание дословно совпало с основным ответом."""
+    """Record whose prediction matches the primary answer verbatim."""
     return judge_record(prediction="Roentgen", EM=1, F1=1.0, **overrides)
 
 
@@ -39,11 +39,11 @@ def write_judge(tmp_path, records) -> "object":
 
 
 def test_missing_gold_titles_give_null_metrics_not_a_hundred_percent(tmp_path) -> None:
-    """Пустой голд у ``title_metrics`` даёт 1.0 — метрика обязана стать None.
+    """Empty gold makes ``title_metrics`` return 1.0; the metric must be None.
 
-    Это тот же капкан, из-за которого заведён build_musique_eval.py: ран без
-    gold-титулов иначе отчитался бы стопроцентным попаданием по титулам и
-    долей потолка больше единицы.
+    The same trap that build_musique_eval.py exists for: otherwise a run
+    without gold titles would report a 100% title hit rate and a share of
+    ceiling above one.
     """
     path = write_judge(tmp_path, [judge_record(), judge_record(id="nq_test_1")])
     scored = report_phase0.score_run(path, ceiling=None)
@@ -71,11 +71,11 @@ def test_present_gold_titles_are_still_scored(tmp_path) -> None:
 
 
 def test_aliases_add_the_official_definition_of_em(tmp_path) -> None:
-    """EM официальных эвалов — максимум по алиасам, судейский — по одному ответу."""
+    """Official evals take EM as the max over aliases; the judge uses one answer."""
     path = write_judge(tmp_path, [judge_record()])
     aliases = {"nq_test_0": ["Wilhelm Conrad Rontgen", "W. C. Roentgen"]}
     scored = report_phase0.score_run(path, ceiling=None, aliases=aliases)
-    # Судья сравнивал с «Roentgen» и не засчитал; алиас совпадает дословно.
+    # The judge compared against "Roentgen" and said no; an alias matches verbatim.
     assert scored["em"] == 0.0
     assert scored["em_alias"] == 1.0
     assert scored["with_aliases"] == 1
@@ -96,17 +96,17 @@ def test_empty_alias_table_leaves_alias_em_equal_to_plain_em(tmp_path) -> None:
 
 
 def test_normalization_drift_from_the_judge_is_refused(tmp_path) -> None:
-    """``em`` берётся у судьи, ``em_alias`` считается здесь — разъезд фатален.
+    """``em`` comes from the judge, ``em_alias`` is computed here; drift is fatal.
 
-    Если наша нормализация разойдётся с судейской, alias-версия окажется ниже
-    основной, и главное число таблицы станет неверным беззвучно. Проверяется
-    ровно этот случай: запись, где судья засчитал совпадение, а по текстам его
-    нет.
+    If our normalization diverges from the judge's, the alias version ends up
+    below the primary one and the headline number of the table becomes
+    silently wrong. This tests exactly that case: a record where the judge
+    counted a match that the texts do not support.
     """
     path = write_judge(tmp_path, [judge_record(EM=1, F1=1.0)])
-    with pytest.raises(ValueError, match="Нормализация разъехалась"):
+    with pytest.raises(ValueError, match="Normalization has diverged"):
         report_phase0.score_run(path, ceiling=None, aliases={})
-    # Без алиасов сверять нечего: судейские числа берутся как есть.
+    # Without aliases there is nothing to cross-check: judge numbers are used as is.
     assert report_phase0.score_run(path, ceiling=None)["em"] == 1.0
 
 
@@ -115,9 +115,9 @@ def test_render_marks_absent_metrics_with_a_dash(tmp_path) -> None:
     scored = report_phase0.score_run(path, ceiling=None)
     table = report_phase0.render([("no retrieval", scored)], ceiling=None)
     header, _, body = table.partition("\n")
-    # Заголовок доли потолка без процента: потолка у датасета нет.
-    assert "доля потолка |" in header
-    assert "EM по алиасам" not in header
+    # Share-of-ceiling header without a percentage: the dataset has no ceiling.
+    assert "share of ceiling |" in header
+    assert "alias EM" not in header
     assert body.split("\n")[-1].count("—") >= 5
 
 
@@ -126,10 +126,10 @@ def test_render_puts_alias_em_in_bold_when_it_exists(tmp_path) -> None:
     scored = report_phase0.score_run(
         path, ceiling=None, aliases={"nq_test_0": ["Wilhelm Conrad Rontgen"]}
     )
-    table = report_phase0.render([("обученная башня", scored)], ceiling=None)
+    table = report_phase0.render([("trained tower", scored)], ceiling=None)
     header, *rows = table.split("\n")
-    assert "EM по алиасам" in header
-    # Жирным ровно одна колонка, и это alias-версия: её читают первой.
+    assert "alias EM" in header
+    # Exactly one column is bold, and it is the alias version: it is read first.
     assert rows[-1].count("**") == 2
     assert "**100.00**" in rows[-1]
 
@@ -141,15 +141,15 @@ def test_percent_distinguishes_absent_from_not_a_number() -> None:
 
 
 def test_paired_t_sees_a_shift_that_mcnemar_cannot() -> None:
-    # Ровно тот случай, ради которого парный t добавлен: вариант лучше на
-    # каждом вопросе по F1, но EM не переворачивается ни разу, поэтому
-    # дискордантных пар нет и McNemar молчит.
+    # Exactly the case the paired t was added for: the variant has better F1
+    # on every question, but EM never flips, so there are no discordant pairs
+    # and McNemar is silent.
     baseline_em = [0.0] * 40
     variant_em = [0.0] * 40
     baseline_f1 = [0.30] * 40
     variant_f1 = [0.42] * 40
     assert report_phase0.mcnemar(baseline_em, variant_em)["wins"] == 0
-    # Постоянный сдвиг — нулевой разброс разностей, t не определён.
+    # A constant shift has zero spread of differences, so t is degenerate.
     assert report_phase0.paired_t(baseline_f1, variant_f1) != report_phase0.paired_t(
         baseline_f1, [value + 0.01 * index for index, value in enumerate(variant_f1)]
     )
@@ -158,8 +158,8 @@ def test_paired_t_sees_a_shift_that_mcnemar_cannot() -> None:
 
 
 def test_paired_t_separates_no_difference_from_a_perfectly_consistent_one() -> None:
-    # Оба случая дают нулевой разброс разностей, но означают противоположное:
-    # совпавшие раны — эффекта нет, ровный сдвиг — эффект на каждом вопросе.
+    # Both cases give zero spread of differences but mean opposite things:
+    # identical runs mean no effect, a constant shift an effect on every question.
     import math
 
     assert math.isnan(report_phase0.paired_t([0.1, 0.2, 0.3], [0.1, 0.2, 0.3]))
@@ -173,8 +173,8 @@ def test_paired_t_refuses_runs_of_different_length() -> None:
 
 
 def test_score_run_keeps_f1_and_judge_per_sample(tmp_path) -> None:
-    # Без покандидатных векторов парный t не из чего собрать, а таблица пар
-    # молча осталась бы одной колонкой McNemar.
+    # Without per-sample vectors there is nothing to build a paired t from,
+    # and the pairs table would silently keep only the McNemar column.
     path = tmp_path / "judge.json"
     path.write_text(
         json.dumps([matching_record(), matching_record()]), encoding="utf-8"

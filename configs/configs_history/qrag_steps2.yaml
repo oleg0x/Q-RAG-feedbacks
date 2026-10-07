@@ -1,27 +1,27 @@
-# Q-RAG-реранкинг поверх top-100 GTE, бюджет два чанка.
+# Q-RAG reranking over GTE top-100, budget of two chunks.
 #
-# Воспроизводит канонический ран 2026-07-28-qrag-fixed-steps2. Копируйте этот
-# файл как основу для новых Q-RAG-экспериментов: менять обычно нужно steps,
-# index_dir (другой чекпоинт) и hypothesis.
-label: "Q-RAG, 2 шага"
+# Reproduces the canonical qrag-fixed-steps2 run. Copy this file as a template
+# for new Q-RAG experiments: usually only steps, index_dir (another checkpoint)
+# and hypothesis need to change.
+label: "Q-RAG, 2 steps"
 slug: qrag-fixed-steps2
 
-# Позиция строки в таблице RESULTS.md.
+# Row position in the results table.
 order: 50
 hypothesis: >-
-  Обученный Q-RAG-реранкер поверх top-100 GTE поднимает answer-метрики
-  относительно голого first-stage.
+  A trained Q-RAG reranker over GTE top-100 improves answer metrics over plain
+  first-stage retrieval.
 
 retrieve:
   kind: qrag
-  index_dir: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-qrag-jul21-best-raw
-  candidate_index_dir: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte
+  index_dir: /path/to/data/full-wiki/wiki18-qrag-jul21-best-raw
+  candidate_index_dir: /path/to/data/full-wiki/wiki18-gte
   candidate_backend: torch-cuda
-  qrag_repo: /home/a.anokhin/Judge/Q-RAG-feedback
-  input: /home/a.anokhin/Judge/datasets/data_sources/hotpotqa/hotpot_dev_fullwiki_v1.json
+  qrag_repo: /path/to/Q-RAG-feedback
+  input: /path/to/data/hotpotqa/hotpot_dev_fullwiki_v1.json
 
-  # Физическая GPU выбирается через CUDA_VISIBLE_DEVICES, внутри процесса она
-  # всегда cuda:0. Перед запуском проверьте свободную память: nvidia-smi.
+  # The physical GPU is selected via CUDA_VISIBLE_DEVICES; inside the
+  # process it is always cuda:0. Check free memory (nvidia-smi) before launch.
   cuda_visible_devices: "1"
   device: cuda:0
 
@@ -33,9 +33,9 @@ retrieve:
   mode: fixed
   reranker: qrag
 
-  # full воспроизводит опубликованные раны побайтово, но раздувает файлы:
-  # answer_judge копирует все поля входа, и steps=2 даёт сотни МБ. Для новых
-  # экспериментов, где дамп кандидатов не нужен, ставьте none.
+  # full reproduces the published runs byte for byte but inflates files:
+  # answer_judge copies all input fields, and steps=2 yields hundreds of MB.
+  # For new experiments that do not need the candidate dump, use none.
   log_candidates: full
 
   dedupe_titles: true
@@ -43,7 +43,8 @@ retrieve:
   auto_prepare: false
 
 judge:
-  script: /home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py
+  script: src/answer_judge.py
+  contract: v1
   base_url: http://127.0.0.1:8010/v1
   answer_model: Qwen3-4B
   max_tokens: 1000

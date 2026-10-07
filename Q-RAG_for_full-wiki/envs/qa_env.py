@@ -96,9 +96,9 @@ class QAEnv(TextEnv):
         self.sample_id = sample["id"]
         self.question = sample['question']
         self.answer = sample['answer']
-        # Допустимых ответов может быть больше одного (NQ). Датасеты без
-        # вариантов дают список из единственного answer, и награда на них
-        # считается ровно как раньше.
+        # There can be more than one accepted answer (NQ). Datasets without
+        # answer aliases give a one-element list with answer, so their reward
+        # is computed exactly as before.
         self.answer_variants = list(sample.get('answer_variants') or [self.answer])
         self.sentences = np.asarray(sample['chunks'])
         self.references_idx = sample.get('sf_idx')

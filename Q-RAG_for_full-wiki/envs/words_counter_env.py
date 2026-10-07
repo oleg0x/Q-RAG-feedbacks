@@ -24,7 +24,7 @@ def isSubArray_v2(A, B):
 
 class WordsCounterEnv(TextEnv):
     def __init__(self, 
-                 dataset: DatasetDict, # load_dataset("AIRI-NLP/quality_counter_new_1024")
+                 dataset: DatasetDict,
                  block_size: int,
                  max_length: int,
                  embedder: nn.Module,

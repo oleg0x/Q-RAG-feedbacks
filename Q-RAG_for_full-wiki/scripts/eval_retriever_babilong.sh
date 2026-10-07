@@ -15,11 +15,11 @@ SEED="$3"
                    #1k, 4k, 32k, 128k, 1kk    10kk
 NUM_SENTENCES_LIST=(50 160 1200 4600 40000) # 400000)
 
-PYTHON="python3" #"$HOME/.mlspace/envs/msr/bin/python3"
+PYTHON="python3" #"/path/to/venv/bin/python3"
 SCRIPT="eval_retriever.py"
 
 for N in "${NUM_SENTENCES_LIST[@]}"; do
-  echo "=== Запуск с envs.num_sentences=${N} ==="
+  echo "=== Run with envs.num_sentences=${N} ==="
   CUDA_VISIBLE_DEVICES="$GPU_ID" "$PYTHON" "$SCRIPT" \
     pretrained_path="$PRETRAINED_PATH" \
     envs.num_sentences="$N" \

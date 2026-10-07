@@ -1,24 +1,26 @@
 #!/usr/bin/env python3
-"""Срез рана для чтения человеком: вопрос, голд, ответ модели, чанки.
+"""Human-readable slice of a run: question, gold answer, model answer, chunks.
 
-``answer_judge.json`` содержит всё нужное, но неудобен: он тащит
-``supporting_facts``, ``sf_idx`` и покандидатные дампы каждого хопа, титул
-статьи спрятан первой строкой внутри текста чанка, а алиасов ответа в нём нет
-вовсе — ``answer_judge_llms.py`` сравнивает предсказание с единственным
-``answer``.
+``answer_judge.json`` has everything needed but is awkward to read: it carries
+``supporting_facts``, ``sf_idx`` and per-candidate dumps of every hop, the
+article title is hidden as the first line of the chunk text, and there are no
+answer aliases at all, since ``answer_judge_llms.py`` compares the prediction
+with the single ``answer``.
 
-Здесь запись раскладывается по полям, а рядом с основными метриками
-появляются alias-версии EM и F1: у 2Wiki алиасы лежат в ``id_aliases.json`` и
-адресуются полем ``answer_id``, у MuSiQue — в ``answer_aliases`` самого
-примера. Официальные эвалы обоих датасетов считают EM максимумом по алиасам,
-поэтому без этой колонки наши числа систематически ниже опубликованных.
+Here each record is split into fields, and alias versions of EM and F1 appear
+next to the primary metrics: 2Wiki keeps aliases in ``id_aliases.json``,
+addressed by the ``answer_id`` field, MuSiQue in the example's own
+``answer_aliases``. The official evals of both datasets take EM as the maximum
+over aliases, so without this column our numbers are systematically below the
+published ones.
 
-Основные метрики не пересчитываются, а **проверяются**: ``EM`` и ``F1``,
-посчитанные здешним кодом по основному ответу, обязаны совпасть с теми, что
-лежат в ``answer_judge.json``. Расхождение означает, что нормализация
-разъехалась с судейской, и тогда alias-версиям верить нельзя — скрипт падает.
+The primary metrics are not recomputed but **verified**: ``EM`` and ``F1``
+computed here against the primary answer must match those in
+``answer_judge.json``. A mismatch means the normalization has diverged from
+the judge's, and then the alias versions cannot be trusted, so the script
+fails.
 
-Пример:
+Example:
 
     python src/export_eval_json.py --run 2026-08-05-lineA-best-2wiki
 """
@@ -45,12 +47,12 @@ ALIAS_FILE = "id_aliases.json"
 
 
 # --------------------------------------------------------------------------
-# метрики
+# metrics
 #
-# Копия нормализации из read-only ``answer_judge_llms.py``. Копия, а не
-# импорт: тот модуль при импорте тянет vLLM-клиента и промпты, а править его
-# нельзя. Совпадение гарантируется не чтением глазами, а сверкой на каждой
-# записи в :func:`export_record`.
+# A copy of the normalization from the original ``answer_judge_llms.py``. A
+# copy rather than an import: that module pulls in the vLLM client and prompts
+# on import, and it must stay unmodified. Agreement is guaranteed not by
+# eyeballing but by a cross-check on every record in :func:`export_record`.
 
 
 def normalize_answer(value: str) -> str:
@@ -80,18 +82,18 @@ def f1_score(prediction: str, target: str) -> float:
 def best_over_aliases(
     prediction: str, targets: Sequence[str]
 ) -> tuple[int, float]:
-    """Максимум EM и F1 по списку допустимых ответов, как в официальных эвалах."""
+    """Maximum EM and F1 over the acceptable answers, as in the official evals."""
     em = max((exact_match(prediction, target) for target in targets), default=0)
     f1 = max((f1_score(prediction, target) for target in targets), default=0.0)
     return em, f1
 
 
 # --------------------------------------------------------------------------
-# алиасы
+# aliases
 
 
 def load_id_aliases(path: Path) -> dict[str, list[str]]:
-    """``id_aliases.json`` 2WikiMultiHopQA: строка на сущность Wikidata."""
+    """2WikiMultiHopQA ``id_aliases.json``: one line per Wikidata entity."""
     aliases: dict[str, list[str]] = {}
     with path.open("r", encoding="utf-8") as stream:
         for line in stream:
@@ -105,12 +107,12 @@ def load_id_aliases(path: Path) -> dict[str, list[str]]:
 
 
 def collect_aliases(dataset: Path, alias_source: Path | None) -> dict[str, list[str]]:
-    """Отображение id примера в допустимые ответы помимо основного.
+    """Map example id to acceptable answers besides the primary one.
 
-    Форма зависит от датасета: MuSiQue носит алиасы в самом примере, 2Wiki
-    адресует их через ``answer_id`` во внешнюю таблицу сущностей, HotpotQA не
-    имеет их вовсе. Все три случая разбираются здесь, чтобы вызывающему коду
-    не приходилось знать, какой датасет он экспортирует.
+    The format depends on the dataset: MuSiQue carries aliases in the example
+    itself, 2Wiki references an external entity table via ``answer_id``, and
+    HotpotQA has none. All three cases are handled here so that callers need
+    not know which dataset they export.
     """
     samples = load_input_samples(dataset)
     inline = {
@@ -121,18 +123,18 @@ def collect_aliases(dataset: Path, alias_source: Path | None) -> dict[str, list[
         if sample.get("answer_aliases")
     }
     if inline:
-        LOG.info("Алиасы из самого датасета: %d примеров", len(inline))
+        LOG.info("Aliases from the dataset itself: %d examples", len(inline))
         return inline
 
     if alias_source is None:
         candidate = dataset.parent / ALIAS_FILE
         alias_source = candidate if candidate.is_file() else None
     if alias_source is None:
-        LOG.info("Алиасов у датасета нет: alias-метрики совпадут с основными")
+        LOG.info("The dataset has no aliases: alias metrics will equal the primary ones")
         return {}
 
     table = load_id_aliases(alias_source)
-    LOG.info("Таблица алиасов: %d сущностей, %s", len(table), alias_source)
+    LOG.info("Alias table: %d entities, %s", len(table), alias_source)
     by_sample = {}
     for index, sample in enumerate(samples):
         answer_id = sample.get("answer_id")
@@ -141,16 +143,16 @@ def collect_aliases(dataset: Path, alias_source: Path | None) -> dict[str, list[
         found = table.get(str(answer_id))
         if found:
             by_sample[sample_id(sample, index)] = found
-    LOG.info("Алиасы разрешены у %d примеров", len(by_sample))
+    LOG.info("Aliases resolved for %d examples", len(by_sample))
     return by_sample
 
 
 # --------------------------------------------------------------------------
-# экспорт
+# export
 
 
 def split_chunk(text: str) -> tuple[str, str]:
-    """Чанк корпуса хранится как ``"Титул"\\nтекст``; разложить обратно."""
+    """A corpus chunk is stored as ``"Title"\\ntext``; split it back."""
     _, _, body = text.partition("\n")
     return wiki_title(text), body
 
@@ -163,17 +165,17 @@ def export_record(
     prediction = record.get("prediction") or ""
     answer = record.get("answer") or ""
 
-    # Сверка с судейскими числами: она и есть гарантия, что alias-версии
-    # посчитаны той же нормализацией, что и колонка EM в таблице.
+    # Cross-check against the judge's numbers: this is what guarantees that the
+    # alias versions use the same normalization as the EM column of the table.
     if exact_match(prediction, answer) != int(record["EM"]):
         raise RuntimeError(
-            f"Запись {record.get('id', index)!r}: EM разошёлся с "
-            f"answer_judge.json ({exact_match(prediction, answer)} против "
-            f"{record['EM']}); нормализация ответа не совпадает с судейской"
+            f"Record {record.get('id', index)!r}: EM disagrees with "
+            f"answer_judge.json ({exact_match(prediction, answer)} vs "
+            f"{record['EM']}); answer normalization differs from the judge's"
         )
     if abs(f1_score(prediction, answer) - float(record["F1"])) > 1e-9:
         raise RuntimeError(
-            f"Запись {record.get('id', index)!r}: F1 разошёлся с answer_judge.json"
+            f"Record {record.get('id', index)!r}: F1 disagrees with answer_judge.json"
         )
 
     targets = [answer, *aliases]
@@ -258,18 +260,18 @@ def build_export(
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--run", required=True, help="run_id из реестра")
+    parser.add_argument("--run", required=True, help="run_id from the registry")
     parser.add_argument(
         "--dataset",
         type=Path,
         default=None,
-        help="файл вопросов; по умолчанию retrieve.input из манифеста",
+        help="questions file; defaults to retrieve.input from the manifest",
     )
     parser.add_argument(
         "--alias-source",
         type=Path,
         default=None,
-        help=f"таблица алиасов; по умолчанию {ALIAS_FILE} рядом с датасетом",
+        help=f"alias table; defaults to {ALIAS_FILE} next to the dataset",
     )
     parser.add_argument("--output", type=Path, default=None)
     parser.add_argument(
@@ -288,7 +290,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     manifest = runlib.read_manifest(run)
     judge_file = run / runlib.JUDGE_FILE
     if not judge_file.exists():
-        raise SystemExit(f"Нет {judge_file}: экспортировать нечего")
+        raise SystemExit(f"Missing {judge_file}: nothing to export")
 
     dataset = args.dataset or Path(manifest["config"]["retrieve"]["input"])
     aliases = collect_aliases(dataset.expanduser().resolve(), args.alias_source)
@@ -306,7 +308,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     temporary.replace(destination)
     summary = export["summary"]
     LOG.info(
-        "%s: %d примеров, EM=%.4f (alias %.4f), F1=%.4f, judge=%.4f → %s",
+        "%s: %d examples, EM=%.4f (alias %.4f), F1=%.4f, judge=%.4f → %s",
         export["dataset"],
         summary["examples"],
         summary["em"],

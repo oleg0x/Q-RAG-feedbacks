@@ -1,28 +1,28 @@
 #!/usr/bin/env python3
-"""Что вообще лежит в top-100 кандидатов GTE и сколько из этого достижимо.
+"""What the GTE top-100 candidates contain and how much of it is reachable.
 
-Реранкер не может выбрать то, чего нет в пуле. Прежде чем вкладываться в
-обучение реранкера, нужно знать две вещи: какая доля вопросов в принципе
-решаема из этого пула и сколько ответов даёт идеальный выбор из него. Обе
-считаются здесь, из ранa с ``--log-candidates full``.
+A reranker cannot pick what is not in the pool. Before investing in reranker
+training we need two numbers: the share of questions solvable from this pool
+at all, and how many answers a perfect selection from it would yield. Both
+are computed here from a run logged with ``--log-candidates full``.
 
 ``report``
-    Диагностика пула в JSON: title recall/EM@100, распределение позиций
-    gold-титулов, oracle-выбор по титулам, доля примеров, где титул найден,
-    а gold-предложение в чанк не попало.
+    Pool diagnostics as JSON: title recall/EM@100, the rank distribution of
+    gold titles, the title oracle, and the share of examples where the title
+    is found but the gold sentence did not land in the chunk.
 
 ``select``
-    Собирает вариант retrieval JSONL, где из тех же 100 кандидатов взяты k
-    чанков, максимизирующих покрытие gold-титулов. Это **oracle по титулам**,
-    а не по ответу: он показывает потолок реранкинга над данным пулом, а не
-    абсолютный потолок задачи.
+    Builds a retrieval JSONL variant that takes, from the same 100
+    candidates, the k chunks maximizing gold-title coverage. This is a
+    **title oracle**, not an answer oracle: it shows the reranking ceiling
+    over this pool, not the absolute ceiling of the task.
 
-Пул берётся из ``retrieval_hops[0]["first_stage_candidate_idx"]`` — сырого
-ранжирования GTE до каких-либо исключений. Титулы и тексты чанков
-резолвятся по row ID через ту же таблицу байтовых смещений, что и сам
-ретривал, поэтому «строка 12345» здесь и в ране означает одно и то же.
+The pool comes from ``retrieval_hops[0]["first_stage_candidate_idx"]``, the
+raw GTE ranking before any exclusions. Titles and chunk texts are resolved
+by row ID through the same byte-offset table as retrieval itself, so
+"row 12345" means the same thing here and in the run.
 
-Примеры:
+Examples:
 
     python src/candidate_pool.py report \
       --input runs/2026-08-02-gte-pool-diag/retrieval.jsonl \
@@ -68,26 +68,26 @@ from fullwiki_qrag import (
 
 LOG = logging.getLogger("candidate-pool")
 
-# Бюджеты чанков, для которых считается oracle-выбор. Те же, что у
-# канонических строк GTE top-2/4/6 в RESULTS.md, иначе сравнивать не с чем.
+# Chunk budgets for the oracle selection. They match the canonical GTE
+# top-2/4/6 rows, otherwise there would be nothing to compare against.
 DEFAULT_BUDGETS = (2, 4, 6)
 
-# Позиция в ранжировании, если gold-титула в пуле нет. Отдельным значением, а
-# не None, чтобы гистограмма и медиана считались по одному и тому же полю.
+# Rank of a gold title absent from the pool. A sentinel value rather than
+# None, so that the histogram and the median are computed over the same field.
 MISSING_RANK = -1
 
 
 # --------------------------------------------------------------------------
-# пул и корпус
+# pool and corpus
 
 
 def pool_row_ids(record: dict[str, Any]) -> list[int]:
-    """Сырое top-k ранжирование GTE из первого шага рана.
+    """Raw GTE top-k ranking from the first step of a run.
 
-    В режиме ``fixed`` пул считается один раз и переиспользуется каждым
-    шагом, поэтому первого шага достаточно. ``first_stage_candidate_idx``, а
-    не ``candidate_idx``: второй у reranker=none совпадает с первым только на
-    нулевом шаге, дальше в нём уже стоят исключения по дедупликации.
+    In ``fixed`` mode the pool is computed once and reused at every step, so
+    the first step is enough. ``first_stage_candidate_idx`` rather than
+    ``candidate_idx``: with reranker=none the latter equals the former only
+    at step zero; later steps already contain deduplication exclusions.
     """
     hops = record.get("retrieval_hops")
     if not hops:
@@ -117,7 +117,7 @@ def iter_pools(
     corpus: WikiCorpus,
     progress_every: int = 500,
 ) -> Iterator[tuple[dict[str, Any], list[int], list[str]]]:
-    """Записи вместе с текстами их пула, по одному чтению корпуса на запись."""
+    """Records with the texts of their pool, one corpus read per record."""
     started = time.monotonic()
     for number, record in enumerate(records, start=1):
         row_ids = pool_row_ids(record)
@@ -125,7 +125,7 @@ def iter_pools(
         yield record, row_ids, texts
         if progress_every and number % progress_every == 0:
             LOG.info(
-                "%d записей, %.0f c (%.1f зап/с)",
+                "%d records, %.0f s (%.1f rec/s)",
                 number,
                 time.monotonic() - started,
                 number / max(time.monotonic() - started, 1e-9),
@@ -133,27 +133,27 @@ def iter_pools(
 
 
 # --------------------------------------------------------------------------
-# сопоставление предложений
+# sentence matching
 
 
 def normalize_text(text: str) -> str:
-    """Одна форма для gold-предложения и для чанка Wiki-18.
+    """One canonical form for a gold sentence and a Wiki-18 chunk.
 
-    Дампы 2017 и 2018 годов различаются HTML-сущностями и пробелами, как и
-    титулы (см. ``normalize_title``); сравнивать сырые строки бессмысленно.
+    The 2017 and 2018 dumps differ in HTML entities and whitespace, as do the
+    titles (see ``normalize_title``); comparing raw strings is meaningless.
     """
     folded = unicodedata.normalize("NFKC", text).casefold()
     return " ".join(folded.split())
 
 
 def sentence_in_chunk(sentence: str, chunk: str) -> str:
-    """Насколько gold-предложение попало в чанк: full, partial или none.
+    """How much of a gold sentence landed in a chunk: full, partial or none.
 
-    Чанк Wiki-18 — это ровно 100 слов, нарезка не уважает границы
-    предложений, поэтому gold-предложение регулярно оказывается разорванным
-    между двумя чанками. Строгое вхождение занижает долю попаданий, половинное
-    её завышает: настоящее значение лежит между ними, и обе границы полезнее
-    одного числа с невнятной погрешностью.
+    A Wiki-18 chunk is exactly 100 words and ignores sentence boundaries, so a
+    gold sentence is often split across two chunks. Strict containment
+    understates the hit rate and half-matching overstates it: the true value
+    lies in between, and two bounds are more useful than one number with an
+    unclear error.
     """
     needle = normalize_text(sentence)
     haystack = normalize_text(chunk)
@@ -171,11 +171,12 @@ def sentence_in_chunk(sentence: str, chunk: str) -> str:
 
 
 def chunk_verdict(sentences: Sequence[str], chunk: str) -> str:
-    """Вердикт по всем gold-предложениям титула сразу.
+    """Verdict over all gold sentences of a title at once.
 
-    ``full`` только если в чанк попали все предложения: если у титула их два и
-    один остался в соседнем чанке, ридер всё равно отвечает по неполному
-    контексту. ``none`` — не попало ни одного, остальное ``partial``.
+    ``full`` only if every sentence landed in the chunk: if a title has two
+    and one stayed in the neighbouring chunk, the reader still answers from
+    incomplete context. ``none`` means none landed; anything else is
+    ``partial``.
     """
     verdicts = [sentence_in_chunk(sentence, chunk) for sentence in sentences]
     if verdicts and all(value == "full" for value in verdicts):
@@ -185,17 +186,17 @@ def chunk_verdict(sentences: Sequence[str], chunk: str) -> str:
     return "partial"
 
 
-# Чем меньше, тем предпочтительнее чанк. Порядок «целиком > половина > нет»,
-# а не «есть > нет»: разорванное по границе чанка предложение всё-таки лучше
-# чанка, где нужного текста нет вовсе.
+# Lower is better. The order is "full > half > none" rather than
+# "present > absent": a sentence split at a chunk boundary is still better
+# than a chunk without the needed text at all.
 VERDICT_PENALTY = {"full": 0, "partial": 1, "none": 2}
 
 
 def gold_sentences_by_title(sample: dict[str, Any]) -> dict[str, list[str]]:
-    """Gold-предложения из distractor-файла, сгруппированные по титулу.
+    """Gold sentences from the distractor file, grouped by title.
 
-    Только distractor-файл содержит gold-абзацы: в fullwiki-файле поле
-    ``context`` — это выдача исходного ретривера (docs/gotchas.md).
+    Only the distractor file contains gold paragraphs: in the fullwiki file
+    the ``context`` field holds the output of the original retriever.
     """
     supporting = sample.get("supporting_facts")
     context = sample.get("context")
@@ -218,11 +219,11 @@ def gold_sentences_by_title(sample: dict[str, Any]) -> dict[str, list[str]]:
 
 
 # --------------------------------------------------------------------------
-# выбор чанков
+# chunk selection
 
 
 def first_positions(normalized_pool: Sequence[str]) -> dict[str, int]:
-    """Титул → его лучшая позиция в пуле. Считается один раз на запись."""
+    """Title -> its best position in the pool. Computed once per record."""
     best_position: dict[str, int] = {}
     for position, title in enumerate(normalized_pool):
         best_position.setdefault(title, position)
@@ -234,11 +235,11 @@ def sentence_penalties(
     texts: Sequence[str],
     gold_sentences: Mapping[str, Sequence[str]],
 ) -> list[int]:
-    """Штраф каждого чанка пула по ``VERDICT_PENALTY``.
+    """Penalty of every pool chunk according to ``VERDICT_PENALTY``.
 
-    Считается только для титулов, чьи gold-предложения известны: у остальных
-    все чанки получают одинаковый штраф, и сортировка внутри титула
-    вырождается в ранг GTE — ровно то, что делал оракул по титулам.
+    Computed only for titles whose gold sentences are known: for the others
+    all chunks get the same penalty, and the order within a title reduces to
+    the GTE rank, which is exactly what the title oracle did.
     """
     penalties = [VERDICT_PENALTY["none"]] * len(texts)
     for position, title in enumerate(normalized_pool):
@@ -254,10 +255,10 @@ def chunks_by_title(
     normalized_pool: Sequence[str],
     penalties: Sequence[int] | None,
 ) -> dict[str, list[int]]:
-    """Титул → его позиции в пуле, лучшая первой.
+    """Title -> its positions in the pool, best first.
 
-    Порядок внутри титула — ``(penalty, ранг GTE)``. Без штрафов это просто
-    ранг, то есть прежний «лучший по рангу чанк статьи».
+    The order within a title is ``(penalty, GTE rank)``. Without penalties it
+    is just the rank, i.e. the original "best-ranked chunk of the article".
     """
     grouped: dict[str, list[int]] = {}
     for position, title in enumerate(normalized_pool):
@@ -276,27 +277,28 @@ def select_positions(
     penalties: Sequence[int] | None = None,
     max_per_title: int = 1,
 ) -> list[int]:
-    """Позиции k чанков, максимизирующих покрытие gold-титулов.
+    """Positions of the k chunks that maximize gold-title coverage.
 
-    Сначала по одному чанку на каждый найденный gold-титул, затем — если
-    ``max_per_title`` больше единицы — вторые чанки тех же титулов, и только
-    потом добор сверху ранжирования. Квота на титул соблюдается и в доборе:
-    она инвариант ранов, с которыми этот выбор сравнивается.
+    First one chunk per found gold title, then, if ``max_per_title`` exceeds
+    one, second chunks of the same titles, and only then filling from the top
+    of the ranking. The per-title quota also holds while filling: it is an
+    invariant of the runs this selection is compared with.
 
-    ``penalties`` задаёт предпочтение между чанками одного титула: 0 лучше,
-    чем 1. Оракул по титулам их не передаёт и берёт лучший по рангу GTE
-    чанк; чанк-осознанный оракул ставит вперёд тот чанк, в котором лежит
-    gold-предложение (``VERDICT_PENALTY``). Между титулами штраф ничего не
-    решает — титул берётся в любом случае, вопрос только каким чанком.
+    ``penalties`` sets the preference between chunks of one title: 0 beats 1.
+    The title oracle passes none and takes the best-ranked GTE chunk; the
+    chunk-aware oracle puts first the chunk containing the gold sentence
+    (``VERDICT_PENALTY``). Across titles the penalty decides nothing: the
+    title is taken anyway, the only question is which chunk.
 
-    Вторые чанки берутся не подряд, а раундами и только если чанк вообще
-    несёт gold-текст (штраф меньше ``VERDICT_PENALTY["none"]``): иначе бюджет
-    уходил бы на второй чанк уже покрытой статьи вместо нового титула.
+    Second chunks are taken in rounds, not consecutively, and only if the
+    chunk carries gold text at all (penalty below ``VERDICT_PENALTY["none"]``):
+    otherwise the budget would go to a second chunk of an already covered
+    article instead of a new title.
 
-    Порядок выбора — раунд за раундом, внутри раунда по рангу — делает
-    результат префикс-согласованным по бюджету: выбор на 2 чанка есть префикс
-    выбора на 6. Поэтому строки k=2/4/6 сравнимы между собой как один и тот
-    же алгоритм с разным бюджетом.
+    The selection order (round by round, by rank within a round) makes the
+    result prefix-consistent across budgets: the 2-chunk selection is a prefix
+    of the 6-chunk one. Hence the k=2/4/6 rows are comparable as one
+    algorithm with different budgets.
     """
     if budget <= 0:
         raise ValueError(f"Budget must be positive: {budget}")
@@ -353,11 +355,11 @@ def gold_ranks(
     gold_titles: Sequence[str],
     normalized_pool: Sequence[str] | None = None,
 ) -> list[int]:
-    """Позиция каждого gold-титула в ранжировании GTE, по возрастанию.
+    """Rank of each gold title in the GTE ranking, in ascending order.
 
-    Позиции сортируются, а не берутся в порядке gold: для bridge-вопроса
-    важно не «какой титул первый в разметке», а насколько глубоко лежит
-    худший из тех, что нужно достать.
+    Ranks are sorted rather than kept in gold order: for a bridge question
+    what matters is not which title comes first in the annotation but how
+    deep the worst of the needed ones lies.
     """
     if normalized_pool is None:
         normalized_pool = [normalize_title(title) for title in pool_titles]
@@ -371,7 +373,7 @@ def gold_ranks(
 
 
 def histogram(ranks: Sequence[int], edges: Sequence[int]) -> dict[str, int]:
-    """Гистограмма позиций по границам вида 1, 5, 10, ... плюс «не найден»."""
+    """Rank histogram with edges such as 1, 5, 10, ... plus "missing"."""
     counts = {"missing": sum(1 for rank in ranks if rank == MISSING_RANK)}
     previous = 0
     for edge in edges:
@@ -414,8 +416,8 @@ def report(
     oracle_em: dict[int, list[float]] = {budget: [] for budget in budgets}
     oracle_recall: dict[int, list[float]] = {budget: [] for budget in budgets}
 
-    # Титул нашли, а нужного предложения в его чанке нет. Считается по
-    # титулам (у одного примера их два) и отдельно по примерам.
+    # The title was found but its chunk lacks the needed sentence. Counted per
+    # title (an example has two) and separately per example.
     sentence_titles = {"full": 0, "partial": 0, "none": 0, "total": 0}
     sentence_titles_any = {"full": 0, "partial": 0, "none": 0, "total": 0}
     examples_with_lost_sentence = 0
@@ -450,7 +452,7 @@ def report(
             oracle_em[budget].append(picked_metrics["title_em"])
             oracle_recall[budget].append(picked_metrics["title_recall"])
 
-        # Гранулярность чанка: титул в пуле есть — а предложение в нём?
+        # Chunk granularity: the title is in the pool, but is the sentence?
         gold_sentences = gold_by_id.get(str(record.get("id")), {})
         lost_here = False
         gold_present_here = False
@@ -463,15 +465,15 @@ def report(
             if not positions:
                 continue
             gold_present_here = True
-            # Тот чанк, который реально возьмёт отбор: лучший по рангу.
+            # The chunk the selection would actually take: the best-ranked one.
             verdict = chunk_verdict(sentences, texts[positions[0]])
             sentence_titles[verdict] += 1
             sentence_titles["total"] += 1
             if verdict != "full":
                 lost_here = True
-            # Тот же вопрос, но если бы отбор мог взять любой чанк статьи из
-            # пула: это верхняя граница для гранулярности, и ровно её берёт
-            # чанк-осознанный выбор в `select --prefer gold-sentence`.
+            # The same question if the selection could take any chunk of the
+            # article from the pool: the upper bound for granularity, which is
+            # exactly what `select --prefer gold-sentence` achieves.
             best = min(
                 (chunk_verdict(sentences, texts[position]) for position in positions),
                 key=lambda value: VERDICT_PENALTY[value],
@@ -512,10 +514,9 @@ def report(
         },
         "gold_rank": {
             "comment": (
-                "Позиции gold-титулов в ранжировании GTE, 0-based, "
-                "отсортированные по возрастанию: 'best' — легче найденный "
-                f"gold, 'second' — следующий за ним. {MISSING_RANK} означает "
-                "«в пуле нет»."
+                "Ranks of gold titles in the GTE ranking, 0-based, sorted "
+                "ascending: 'best' is the easier-found gold title, 'second' "
+                f"the next one. {MISSING_RANK} means 'not in the pool'."
             ),
             "best_found": summarize(
                 [rank for rank in best_ranks if rank != MISSING_RANK]
@@ -544,14 +545,14 @@ def report(
         },
         "chunk_granularity": {
             "comment": (
-                "Титул в пуле есть — лежит ли в его чанке gold-предложение. "
-                "'full' — предложение целиком внутри чанка, 'partial' — "
-                "половина (чанк Wiki-18 режется по 100 слов и рвёт "
-                "предложения), 'none' — не найдено. 'selected_chunk' — "
-                "лучший по рангу чанк титула, то есть тот, который возьмёт "
-                "отбор при включённой дедупликации; 'any_chunk_in_pool' — "
-                "верхняя граница, если бы разрешалось взять любой чанк "
-                "статьи из пула."
+                "Given the title is in the pool, does its chunk contain the "
+                "gold sentence. 'full': the whole sentence is inside the "
+                "chunk; 'partial': half of it (Wiki-18 chunks are cut every "
+                "100 words and split sentences); 'none': not found. "
+                "'selected_chunk': the best-ranked chunk of the title, i.e. "
+                "the one selection takes with deduplication on; "
+                "'any_chunk_in_pool': the upper bound if any chunk of the "
+                "article in the pool could be taken."
             ),
             "selected_chunk": sentence_titles,
             "any_chunk_in_pool": sentence_titles_any,
@@ -601,16 +602,16 @@ def oracle_record(
     result["q_values"] = (
         [float(scores[position]) for position in positions] if scores else []
     )
-    # Пул один и тот же на всех шагах, отдельных хопов у этого варианта нет:
-    # логировать сто кандидатов повторно незачем, ран A их уже сохранил.
+    # The pool is the same at every step and this variant has no separate
+    # hops: no need to log the hundred candidates again, run A saved them.
     result["retrieval_hops"] = [
         {"step": step, "selected_idx": int(row_ids[position]), "pool_rank": position}
         for step, position in enumerate(positions)
     ]
     result["retrieved_titles"] = [pool_titles[position] for position in positions]
     result.update(title_metrics(gold, result["retrieved_titles"]))
-    # Не 'none': build_eval_variants.py обязан отказаться усекать этот ран,
-    # он не является first-stage baseline.
+    # Not 'none': build_eval_variants.py must refuse to truncate this run,
+    # it is not a first-stage baseline.
     mode = "oracle-titles" if gold_sentences is None else "oracle-chunks"
     result["reranker"] = mode
     result["eval_variant"] = f"{mode}-{budget}" + (
@@ -693,7 +694,7 @@ def command_report(args: argparse.Namespace) -> int:
         destination = args.output.expanduser().resolve()
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_text(rendered, encoding="utf-8")
-        LOG.info("Записан %s", destination)
+        LOG.info("Wrote %s", destination)
     return 0
 
 
@@ -733,7 +734,7 @@ def command_select(args: argparse.Namespace) -> int:
         args.max_per_title,
     )
     LOG.info("%s", json.dumps(summary, indent=2))
-    LOG.info("Записан %s", destination)
+    LOG.info("Wrote %s", destination)
     return 0
 
 
@@ -746,28 +747,28 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    report_parser = subparsers.add_parser("report", help="диагностика пула в JSON")
+    report_parser = subparsers.add_parser("report", help="pool diagnostics as JSON")
     add_corpus_arguments(report_parser)
     report_parser.add_argument(
         "--gold-source",
         type=Path,
         default=None,
         help=(
-            "hotpot_dev_distractor_v1.json: единственный dev-файл, где "
-            "context содержит gold-абзацы. Без него не считается только "
-            "диагностика по предложениям"
+            "hotpot_dev_distractor_v1.json: the only dev file whose context "
+            "contains gold paragraphs. Without it only the sentence-level "
+            "diagnostics are skipped"
         ),
     )
     report_parser.add_argument("--coverage", type=Path, required=True)
     report_parser.add_argument(
         "--budget", type=int, action="append", default=None,
-        help=f"бюджеты чанков для oracle-выбора; по умолчанию {DEFAULT_BUDGETS}",
+        help=f"chunk budgets for the oracle selection; default {DEFAULT_BUDGETS}",
     )
     report_parser.add_argument("--output", type=Path, default=None)
     report_parser.set_defaults(handler=command_report)
 
     select_parser = subparsers.add_parser(
-        "select", help="вариант JSONL с oracle-выбором по титулам"
+        "select", help="JSONL variant with the title-oracle selection"
     )
     add_corpus_arguments(select_parser)
     select_parser.add_argument("--steps", type=int, required=True)
@@ -777,11 +778,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         choices=("rank", "gold-sentence"),
         default="rank",
         help=(
-            "какой чанк gold-титула брать: 'rank' — лучший по рангу GTE "
-            "(оракул по титулам), 'gold-sentence' — тот, в котором лежит "
-            "gold-предложение (целиком > половина > нет), тай-брейк — ранг. "
-            "Второй режим и есть честная верхняя граница чанкового реранкера: "
-            "он выбирает из тех же чанков, что и реранкер"
+            "which chunk of a gold title to take: 'rank' is the best GTE rank "
+            "(title oracle), 'gold-sentence' is the one containing the gold "
+            "sentence (full > half > none), ties broken by rank. The second "
+            "mode is the fair upper bound for a chunk reranker: it picks from "
+            "the same chunks as the reranker"
         ),
     )
     select_parser.add_argument(
@@ -789,9 +790,9 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         type=Path,
         default=None,
         help=(
-            "hotpot_dev_distractor_v1.json: обязателен для "
-            "--prefer gold-sentence, только в нём context содержит "
-            "gold-абзацы"
+            "hotpot_dev_distractor_v1.json: required for "
+            "--prefer gold-sentence; only its context contains gold "
+            "paragraphs"
         ),
     )
     select_parser.add_argument(
@@ -799,8 +800,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         type=int,
         default=1,
         help=(
-            "сколько чанков одной статьи разрешено взять; 1 — дедупликация "
-            "титулов, как во всех опубликованных ранах"
+            "how many chunks of one article may be taken; 1 means title "
+            "deduplication, as in all published runs"
         ),
     )
     select_parser.set_defaults(handler=command_select)
@@ -820,8 +821,8 @@ if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except KeyboardInterrupt:
-        LOG.error("Прервано")
+        LOG.error("Interrupted")
         raise SystemExit(130)
     except Exception as error:
-        LOG.error("Не удалось: %s", error)
+        LOG.error("Failed: %s", error)
         raise

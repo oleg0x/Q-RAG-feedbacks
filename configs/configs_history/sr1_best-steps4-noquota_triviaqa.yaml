@@ -1,0 +1,43 @@
+# TriviaQA from the Search-R1 evaluation split: the trained line A tower with a
+# budget of 4 steps and no per-title quota.
+#
+# Same checkpoint as sr1_triviaqa_best.yaml (model_best of
+# Aug03_12-44-38_lineA_main); two settings differ from that config: the budget
+# drops from 6 to 4 steps and the quota is lifted (--max-chunks-per-title 4
+# equals the budget, so it never binds). The trained tower does not need the
+# quota at inference.
+#
+# Judge: the in-repo fork with reward contract v2 (the default), so em_alias is
+# comparable with the other sr1 rows while the judge column is not.
+label: Direct search, trained tower, 4 steps, no quota
+slug: sr1-best-steps4-noquota-triviaqa
+dataset: sr1_triviaqa
+
+order: 140
+hypothesis: >-
+  How much alias EM the trained tower loses when the budget shrinks from six
+  chunks to four, measured outside the training distribution.
+
+retrieve:
+  kind: search
+  index_dir: /path/to/data/full-wiki/wiki18-gte
+  qrag_repo: Q-RAG_for_full-wiki
+  checkpoint: Q-RAG_for_full-wiki/runs/Aug03_12-44-38_lineA_main/model_best.pt
+  state_source: critic
+  input: runs/shared/searchr1/triviaqa.jsonl
+  cuda_visible_devices: "0"
+  device: cuda:0
+  model_dtype: float32
+  batch_size: 64
+  top_k: 100
+  steps: 4
+  max_chunks_per_title: 4
+  log_candidates: none
+  auto_prepare: false
+
+judge:
+  base_url: http://127.0.0.1:8010/v1
+  answer_model: Qwen3-4B
+  max_tokens: 1000
+  judge_max_tokens: 100
+  shards: 32

@@ -1,30 +1,30 @@
 #!/usr/bin/env python3
-"""Ридер и судья по retriever JSONL — форк с контрактом награды v2.
+"""Reader and judge over retriever JSONL: a fork with reward contract v2.
 
-Функциональная копия read-only ``Q-RAG-feedback/answer_judge_llms.py``: те же
-аргументы, тот же клиент, те же промпты, то же декодирование. Отличие одно и
-задаётся флагом ``--contract``.
+A functional copy of the read-only ``Q-RAG-feedback/answer_judge_llms.py``: the
+same arguments, client, prompts and decoding. The only difference is selected
+by the ``--contract`` flag.
 
-``v1`` — прежнее поведение, бит в бит: ``EM``/``F1`` считаются против
-единственного ``answer``, судья зовётся на каждом примере. Этим контрактом
-сняты все 65 старых ранов, и пересуживать их не нужно.
+``v1`` is the original behaviour, bit for bit: ``EM``/``F1`` are computed
+against the single ``answer`` and the judge is called on every example.
+Earlier runs were scored with this contract and need no re-judging.
 
-``v2`` (умолчание) — награда по вариантам ответа::
+``v2`` (default) is the reward over answer aliases::
 
-    em_alias = max(exact_match(prediction, v) для v в вариантах)
-    если em_alias == 0:  судья, эталон = " | ".join(варианты)
-    reward   = 1.0 если em_alias иначе float(вердикт == "CORRECT")
+    em_alias = max(exact_match(prediction, v) for v in aliases)
+    if em_alias == 0:  judge, reference = " | ".join(aliases)
+    reward   = 1.0 if em_alias else float(verdict == "CORRECT")
 
-Зачем: у NQ 42.5% примеров имеют больше одного допустимого ответа (в среднем
-1.80, максимум 23), и сравнение с единственным занижает EM с 11.97% до 9.25%
-на одних и тех же предсказаниях. Судья же расходится с ``em_alias`` в обе
-стороны, поэтому награда — максимум, а не вердикт судьи.
+Why: 42.5% of NQ examples have more than one accepted answer (1.80 on
+average, up to 23), and comparing against a single one lowers EM from 11.97%
+to 9.25% on the same predictions. The judge disagrees with ``em_alias`` in
+both directions, so the reward is their maximum, not the judge verdict.
 
-Варианты ответа берутся **не из ``retrieval.jsonl``**: стадия ретривала
-алиасы роняет. Таблица грузится отдельно, ровно как в ``export_eval_json.py``
-и ``report_phase0.py`` — по ``--dataset <ключ>`` через ``runlib.DATASETS`` или
-по явному ``--aliases <путь>``. У датасета без алиасов список вариантов —
-из одного ``answer``.
+Answer aliases are **not** taken from ``retrieval.jsonl``: the retrieval stage
+drops them. The table is loaded separately, exactly as in
+``export_eval_json.py`` and ``report_phase0.py``: by ``--dataset <key>`` via
+``runlib.DATASETS`` or by an explicit ``--aliases <path>``. For a dataset
+without aliases the list contains only ``answer``.
 
     python src/answer_judge.py --retriever-logfile runs/<id>/retrieval.jsonl \\
         --output-file runs/<id>/answer_judge.json --dataset sr1_nq
@@ -41,22 +41,23 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-# Клиент и промпты — вендорные байт-копии read-only оригинала
-# (`src/vendored_prompts.py`, `src/vendored_vllm_client.py`), а не свой код:
-# иначе регрессия против оригинала проверяла бы наш клиент, а не нашу логику.
-# Копии внутри репозитория, чтобы форк работал без соседнего Q-RAG-feedback;
-# их дрейф ловит tests/test_vendored.py там, где оригинал доступен.
+# The client and prompts are vendored byte copies of the read-only original
+# (`src/vendored_prompts.py`, `src/vendored_vllm_client.py`), not our own code:
+# otherwise a regression against the original would test our client rather
+# than our logic. The copies live in the repository so that the fork works
+# without a neighbouring Q-RAG-feedback; tests/test_vendored.py catches drift
+# where the original is available.
 import vendored_prompts as prompts
 from vendored_vllm_client import SyncVllmClient, extract_response_text
 
 
 CONTRACTS = ("v1", "v2")
 
-# Одна правка промпта судьи: эталон стал списком. Строгость не трогаем —
-# подстановка, а не свой текст, чтобы расхождение с оригиналом падало, а не
-# копилось тихо. Копия определения из
-# Q-RAG_for_full-wiki/prompts_and_metrics/prompts.py, равенство проверяет
-# test_answer_judge.py.
+# The only change to the judge prompt: the reference becomes a list. Strictness
+# is untouched. A substitution rather than our own text, so that a divergence
+# from the original fails loudly instead of accumulating silently. A copy of
+# the definition in Q-RAG_for_full-wiki/prompts_and_metrics/prompts.py;
+# test_answer_judge.py checks that they are equal.
 JUDGE_REFERENCE_V1 = (
     "You are given a QUESTION, PREDICTED ANSWER and GROUNDTRUTH ANSWER."
 )
@@ -72,15 +73,15 @@ def judge_prompt(contract: str) -> str:
         return prompts.sys_judge
     if JUDGE_REFERENCE_V1 not in prompts.sys_judge:
         raise SystemExit(
-            "Промпт судьи в vendored_prompts.py изменился: строку описания "
-            "эталона не нашли, подстановка множественного числа больше не "
-            "применима"
+            "The judge prompt in vendored_prompts.py has changed: the line "
+            "describing the reference was not found, so the plural "
+            "substitution no longer applies"
         )
     return prompts.sys_judge.replace(JUDGE_REFERENCE_V1, JUDGE_REFERENCE_V2)
 
 
 # --------------------------------------------------------------------------
-# метрики — копия оригинала, дословно
+# metrics: a verbatim copy of the original
 
 
 def normalize_answer(value):
@@ -119,21 +120,21 @@ def final_answer(text):
 
 
 def best_over_aliases(prediction, targets):
-    """Максимум EM и F1 по вариантам — как в официальных эвалах."""
+    """Maximum EM and F1 over aliases, as in the official evaluations."""
     em = max((exact_match(prediction, target) for target in targets), default=0)
     f1 = max((f1_score(prediction, target) for target in targets), default=0.0)
     return em, f1
 
 
 # --------------------------------------------------------------------------
-# варианты ответа
+# answer aliases
 
 
 def load_variants(dataset: str | None, aliases_path: str | None) -> dict:
-    """``id`` → допустимые ответы помимо основного.
+    """``id`` -> accepted answers besides the main one.
 
-    Пустой словарь означает «алиасов у датасета нет», и список вариантов
-    каждого примера сведётся к его единственному ``answer``.
+    An empty dict means "the dataset has no aliases", and the alias list of
+    each example reduces to its single ``answer``.
     """
     if dataset is None and aliases_path is None:
         return {}
@@ -188,15 +189,17 @@ def main():
     parser.add_argument(
         "--judge-all",
         action="store_true",
-        help="звать судью на каждом примере независимо от em_alias",
+        help="call the judge on every example regardless of em_alias",
     )
-    parser.add_argument("--dataset", help="ключ runlib.DATASETS для таблицы вариантов")
-    parser.add_argument("--aliases", help="файл таблицы вариантов напрямую")
+    parser.add_argument("--dataset", help="runlib.DATASETS key for the alias table")
+    parser.add_argument("--aliases", help="alias table file, given directly")
     args = parser.parse_args()
     if not args.base_url or not args.answer_model:
-        parser.error("VLLM_BASE_URL/--base-url и VLLM_MODEL/--answer-model обязательны")
+        parser.error(
+            "VLLM_BASE_URL/--base-url and VLLM_MODEL/--answer-model are required"
+        )
     if args.dataset and args.aliases:
-        parser.error("--dataset и --aliases взаимоисключающие")
+        parser.error("--dataset and --aliases are mutually exclusive")
 
     aliases = load_variants(args.dataset, args.aliases) if args.contract == "v2" else {}
 
@@ -265,8 +268,9 @@ def main():
                     if args.contract == "v2":
                         result["judge_imputed"] = False
                 else:
-                    # Судью не звали: EM уже совпал. Вменённая единица помечается
-                    # отдельным полем — вменение нельзя путать с вердиктом.
+                    # The judge was not called: EM already matched. The imputed
+                    # 1.0 is flagged in a separate field so it is never mistaken
+                    # for a verdict.
                     result["LLM_Judge_Score"] = 1.0
                     result["judge_imputed"] = True
                 if args.contract == "v2":

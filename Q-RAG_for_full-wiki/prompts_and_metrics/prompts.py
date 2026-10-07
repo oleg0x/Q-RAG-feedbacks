@@ -14,10 +14,10 @@ Ignore harmless wording, formatting, numeric, and date representation difference
 If the predicted answer is only partially correct or misses key information, mark it incorrect.
 Your final answer must be exactly "Final Answer: CORRECT" or "Final Answer: INCORRECT"."""
 
-# Контракт v2: эталон — список допустимых ответов, а не один. Правится ровно
-# одна строка v1, остальное обязано остаться прежним: судья — та же модель с
-# той же строгостью, меняется только описание эталона. Замена, а не отдельный
-# текст, чтобы расхождение с read-only оригиналом падало, а не тихо копилось.
+# Reward contract v2: the reference is a list of accepted answers, not a single
+# one. Exactly one v1 line is changed and everything else must stay the same:
+# same judge model, same strictness, only the reference description differs.
+# Substitution rather than a separate text, so drift from the original fails loudly.
 JUDGE_REFERENCE_V1 = (
     "You are given a QUESTION, PREDICTED ANSWER and GROUNDTRUTH ANSWER."
 )
@@ -31,8 +31,8 @@ JUDGE_REFERENCE_V2 = (
 def judge_prompt_v2(base: str = sys_judge) -> str:
     if JUDGE_REFERENCE_V1 not in base:
         raise ValueError(
-            "Промпт судьи изменился: строку описания эталона не нашли, "
-            "подстановка множественного числа больше не применима"
+            "Judge prompt has changed: the reference description line was not "
+            "found, so the plural substitution no longer applies"
         )
     return base.replace(JUDGE_REFERENCE_V1, JUDGE_REFERENCE_V2)
 

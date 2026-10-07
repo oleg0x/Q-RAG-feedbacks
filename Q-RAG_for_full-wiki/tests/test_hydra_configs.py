@@ -24,10 +24,10 @@ def test_all_top_level_configs_compose_and_resolve():
                 assert cfg.envs.env._target_
                 assert cfg.envs.test_env._target_
             else:
-                # Конфиги прямого поиска (линия A): множество действий задаёт
-                # не датасет, а поиск по матрице, envs.env здесь нет по
-                # устройству — train_q_rag_search.py собирает среды сам.
-                # Контракт другой: индекс, пул и оба датасета обязаны быть.
+                # Direct-search configs (line A): the action set comes from
+                # matrix search, not the dataset, so there is no envs.env by
+                # design; train_q_rag_search.py builds the environments itself.
+                # The contract differs: index, pool and both datasets must exist.
                 assert cfg.envs.index.shard_dir
                 assert int(cfg.envs.top_k) > 0
                 assert cfg.envs.train_dataset._target_
@@ -45,4 +45,4 @@ def test_base_training_defaults_are_preserved():
 
 def test_qicl_configs_do_not_reference_foreign_home():
     for path in Path("configs").glob("*.yaml"):
-        assert "/home/o.inozemcev" not in path.read_text(encoding="utf-8")
+        assert "/home/" not in path.read_text(encoding="utf-8")

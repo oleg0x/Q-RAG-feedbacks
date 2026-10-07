@@ -141,15 +141,15 @@ dmypy.json
 .pyre/
 
 .vscode/
-# runs/ не версионируется: чекпоинты по 7.3 ГБ. Исключение — конфиг-снимок
-# и кривые обучения трёх опубликованных ранов: это запись того, чем и как
-# обучены башни из витрины, весит сотни килобайт.
+# runs/ is not versioned: checkpoints are 7.3 GB each. The exceptions are the
+# config snapshot and training curves of the three published runs: they record
+# how the released towers were trained and weigh a few hundred kilobytes.
 runs/**
 !runs/*/
 !runs/*/config.yaml
 !runs/*/tb_logs/
 !runs/*/tb_logs/**
 data/*.tsv
-# Артефакты индексов и таблиц: сотни мегабайт, пересобираются скриптом.
+# Index and table artifacts: hundreds of megabytes, rebuilt by a script.
 *.npy
 data/

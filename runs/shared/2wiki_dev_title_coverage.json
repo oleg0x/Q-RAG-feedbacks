@@ -1,6 +1,6 @@
 {
-  "corpus": "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/data00/jiajie_jin/flashrag_indexes/wiki_dpr_100w/wiki_dump.jsonl",
-  "dataset": "/home/a.anokhin/Judge/datasets/data_sources/2WikiMultiHopQA/data_ids_april7/dev.json",
+  "corpus": "/path/to/data/full-wiki/data00/jiajie_jin/flashrag_indexes/wiki_dpr_100w/wiki_dump.jsonl",
+  "dataset": "/path/to/data/2WikiMultiHopQA/data_ids_april7/dev.json",
   "distinct_corpus_titles": 3232908,
   "examples": 12576,
   "gold_titles": 30654,

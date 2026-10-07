@@ -16,16 +16,16 @@ def write_corpus(path: Path, rows: list[dict]) -> None:
 
 
 def sample_rows() -> list[dict]:
-    """Корпус, повторяющий формы титулов из Wiki-18.
+    """A corpus reproducing the title shapes found in Wiki-18.
 
-    Кавычки внутри заголовка, не-ASCII и несколько чанков одной статьи —
-    именно эти три случая ломают наивный разбор титула по байтам.
+    Quotes inside a title, non-ASCII text and several chunks of one article:
+    exactly the three cases that break naive byte-level title parsing.
     """
     return [
         {"id": "0", "contents": '"First title"\nFirst passage.'},
         {"id": "1", "contents": '"First title"\nSecond chunk of the same article.'},
         {"id": "2", "contents": '"Quoted \\"title\\""\nThird passage.'},
-        {"id": "3", "contents": '"Привет"\nUnicode passage.'},
+        {"id": "3", "contents": '"Zürich"\nUnicode passage.'},
         {"id": "4", "contents": '"First title"\nThird chunk of the same article.'},
     ]
 
@@ -66,11 +66,11 @@ def test_chunks_of_one_article_share_a_title_id(tmp_path: Path) -> None:
     assert metadata["distinct_titles"] == len(titles) == 3
     assert titles[int(table[0])] == "First title"
     assert titles[int(table[2])] == 'Quoted "title"'
-    assert titles[int(table[3])] == "Привет"
+    assert titles[int(table[3])] == "Zürich"
 
 
 def test_every_row_matches_a_full_json_decode(tmp_path: Path) -> None:
-    """Приёмка задачи: сверка таблицы с полным разбором JSON, а не с самой собой."""
+    """Acceptance: check the table against a full JSON parse, not against itself."""
     rows = sample_rows()
     corpus, output, _ = build(tmp_path)
 
@@ -80,12 +80,12 @@ def test_every_row_matches_a_full_json_decode(tmp_path: Path) -> None:
         expected = json.loads(item["contents"].partition("\n")[0])
         assert titles[int(table[row])] == expected
 
-    # Тот же путь, которым проверяет себя сам скрипт.
+    # The same path the script uses to check itself.
     assert title_table.verify_table(corpus, table, titles, samples=64, seed=1) > 0
 
 
 def test_row_count_mismatch_leaves_no_artifact(tmp_path: Path) -> None:
-    """Недостроенная таблица не должна выглядеть готовой для следующего запуска."""
+    """An unfinished table must not look complete to the next launch."""
     corpus = tmp_path / "wiki.jsonl"
     write_corpus(corpus, sample_rows())
     output = tmp_path / "corpus-title-ids.npy"

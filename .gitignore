@@ -1,4 +1,4 @@
-# Мусор интерпретатора и инструментов
+# Interpreter and tool leftovers
 __pycache__/
 *.py[cod]
 .pytest_cache/
@@ -6,23 +6,14 @@ __pycache__/
 *.tmp
 *.rej
 
-# Следы `pip install -e .`: README предлагает этот способ, и без правила
-# egg-info с build/ всплывают в git status у каждого, кто им воспользовался.
+# Leftovers of `pip install -e .`
 build/
 dist/
 *.egg-info/
 
-# Внутренний слой лаборатории: остаётся на диске и обслуживает рабочий цикл,
-# но в публичный репозиторий не едет. STATE.md — незакрытая записка между
-# сессиями,
-# docs/prompts/ — сырые задания. Читателю они ничего не объясняют, а
-# устаревают быстрее всего остального.
-STATE.md
-docs/prompts/
-
-# runs/: в git попадает только реестр, полезная нагрузка остаётся на диске.
-# Порядок правил важен: git не может вернуть файл из исключённого каталога,
-# поэтому `!runs/*/` обязано стоять раньше негаций отдельных файлов.
+# runs/: only the registry is versioned, run payloads stay on disk.
+# Rule order matters: git cannot re-include a file from an excluded
+# directory, so `!runs/*/` must come before the per-file negations.
 runs/**
 !runs/*/
 !runs/INDEX.md
@@ -31,9 +22,9 @@ runs/**
 !runs/*/cmd.sh
 !runs/*/*.md
 !runs/*/judge_diagnostics.json
-# Наверху runs/ — только раны главной таблицы README, остальные в
-# runs/runs_history/<ран>/. Негации повторяются для второго уровня:
-# одним шаблоном оба уровня в gitignore не выразить.
+# The top level of runs/ holds the runs behind the main tables; all other runs
+# live in runs/runs_history/<run>/. The negations are repeated for the second
+# level because one gitignore pattern cannot express both.
 !runs/runs_history/*/
 !runs/runs_history/*/manifest.json
 !runs/runs_history/*/metrics.json
@@ -50,15 +41,15 @@ runs/**
 !runs/shared/2wiki_train_q0_s1_title_coverage.json
 !runs/shared/combined_train_q0_s1_title_coverage.json
 
-# Запрет по умолчанию оставлен намеренно: он защищает репозиторий от случайно
-# закоммиченного полугигабайтного JSONL. Появился новый мелкий артефакт,
-# который нужно версионировать — добавьте его имя негацией выше.
+# Ignoring by default is deliberate: it protects the repository from an
+# accidentally committed multi-gigabyte JSONL. To version a new small
+# artifact, add a negation for it above.
 
-# Архив устаревших ранов не версионируется целиком
+# Archive of retired runs
 runs/_archive/
 
-# Обучающая смесь: parquet весит 426 МБ, файл весов — 170 тыс. строк. Оба
-# восстанавливаются командой `python build_train_mix.py` из манифеста и
-# holdout, поэтому в git едут только они.
+# Raw training mix: the parquet files (426 MB) and the episode-weight file are
+# rebuilt by `python src/build_train_mix.py` from the manifest and holdout,
+# so only those two are versioned.
 train_data/raw/
 train_data/weights/

@@ -21,20 +21,20 @@
   },
   "config": {
     "config_file": "pool_oracle_chunks_k4.yaml",
-    "hypothesis": "Выбор чанка по содержимому, а не по рангу, поднимает потолок реранкинга над top-100 относительно оракула по титулам: gold-предложение часто лежит не в том чанке статьи, который выше в ранжировании GTE.",
+    "hypothesis": "Choosing chunks by content rather than rank raises the reranking ceiling over top-100 relative to the title oracle: the gold sentence often lies outside the article's top-ranked GTE chunk.",
     "judge": {
       "answer_model": "Qwen3-4B",
       "base_url": "http://127.0.0.1:8010/v1",
       "judge_max_tokens": 100,
       "max_tokens": 1000,
-      "script": "/home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py",
+      "script": "/path/to/Q-RAG-feedback/answer_judge_llms.py",
       "shards": 32
     },
-    "label": "oracle по чанкам, 4 чанка",
+    "label": "chunk oracle, 4 chunks",
     "order": 75,
     "retrieve": {
-      "gold_source": "/home/a.anokhin/Judge/datasets/data_sources/hotpotqa/hotpot_dev_distractor_v1.json",
-      "index_dir": "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-qrag-jul21-best-raw",
+      "gold_source": "/path/to/data/hotpotqa/hotpot_dev_distractor_v1.json",
+      "index_dir": "/path/to/data/full-wiki/wiki18-qrag-jul21-best-raw",
       "kind": "pool",
       "prefer": "gold-sentence",
       "source_run": "2026-08-02-gte-pool-diag",
@@ -45,7 +45,7 @@
   "created_utc": "2026-08-02T10:03:51.729866+00:00",
   "env": {
     "cuda_visible_devices": null,
-    "executable": "/home/a.anokhin/venvs/gpu/bin/python",
+    "executable": "/path/to/venv/bin/python",
     "faiss": null,
     "gpu": [
       "0, NVIDIA H200, 143771 MiB",
@@ -64,7 +64,7 @@
     "transformers": "4.57.6"
   },
   "finished_utc": "2026-08-02T10:06:38.419837+00:00",
-  "hypothesis": "Выбор чанка по содержимому, а не по рангу, поднимает потолок реранкинга над top-100 относительно оракула по титулам: gold-предложение часто лежит не в том чанке статьи, который выше в ранжировании GTE.",
+  "hypothesis": "Choosing chunks by content rather than rank raises the reranking ceiling over top-100 relative to the title oracle: the gold sentence often lies outside the article's top-ranked GTE chunk.",
   "inputs": {
     "action_artifact": {
       "created_at": "2026-07-27T23:20:29.150804+00:00",
@@ -98,7 +98,7 @@
       "source": {
         "checkpoint": {
           "mtime_ns": 1784727318643171251,
-          "path": "/home/a.anokhin/Judge/Q-RAG-feedback/runs/Jul21_19-44-36_QRAG_HotPotQA+2WikiMultihopQA/model_best.pt",
+          "path": "/path/to/Q-RAG-feedback/runs/Jul21_19-44-36_QRAG_HotPotQA+2WikiMultihopQA/model_best.pt",
           "sha256": "865fc68fb9aa023224aac122257cc0671dcf0cedd343683cdcf40f8c00b55fa3",
           "size_bytes": 10999718469
         },
@@ -106,17 +106,17 @@
         "checkpoint_section": "critic",
         "config": {
           "mtime_ns": 1784663076015404124,
-          "path": "/home/a.anokhin/Judge/Q-RAG-feedback/runs/Jul21_19-44-36_QRAG_HotPotQA+2WikiMultihopQA/config.yaml",
+          "path": "/path/to/Q-RAG-feedback/runs/Jul21_19-44-36_QRAG_HotPotQA+2WikiMultihopQA/config.yaml",
           "sha256": "7e9c1792bdbc343451d6c9fcc36846e017da3086454e27c004b2d3d2734886d0",
           "size_bytes": 7673
         },
         "qrag_implementation": {
           "mtime_ns": 1784292288789738368,
-          "path": "/home/a.anokhin/Judge/Q-RAG-feedback/rl/bert_predictor.py",
+          "path": "/path/to/Q-RAG-feedback/rl/bert_predictor.py",
           "sha256": "7d82d0749afd0b57d1416dd6c39477f164fd710421f23faaadbd8a29e2f142c8",
           "size_bytes": 10798
         },
-        "run_dir": "/home/a.anokhin/Judge/Q-RAG-feedback/runs/Jul21_19-44-36_QRAG_HotPotQA+2WikiMultihopQA",
+        "run_dir": "/path/to/Q-RAG-feedback/runs/Jul21_19-44-36_QRAG_HotPotQA+2WikiMultihopQA",
         "state_dict_prefix": "action_embed."
       },
       "tokenizer_directory": "tokenizer",
@@ -144,7 +144,7 @@
       "rows": 21015324,
       "sha256": "43d7d3f58d01d711d95b00b70584211eea639fa46802905a4b7e11cf0617752d",
       "size_bytes": 14393573105,
-      "source_path": "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/data00/jiajie_jin/flashrag_indexes/wiki_dpr_100w/wiki_dump.jsonl",
+      "source_path": "/path/to/data/full-wiki/data00/jiajie_jin/flashrag_indexes/wiki_dpr_100w/wiki_dump.jsonl",
       "tar_member": null,
       "text_format": "raw",
       "validate_id_matches_row": true
@@ -156,11 +156,11 @@
       "resolved_revision": "9bbca17d9273fd0d03d5725c7a4b0f6b45142062"
     },
     "gold_source": {
-      "path": "/home/a.anokhin/Judge/datasets/data_sources/hotpotqa/hotpot_dev_distractor_v1.json",
+      "path": "/path/to/data/hotpotqa/hotpot_dev_distractor_v1.json",
       "sha256": "4e9ecb5c8d3b719f624d66b60f8d56bf227f03914f5f0753d6fa1b359d7104ea",
       "size_bytes": 46320117
     },
-    "index_dir": "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-qrag-jul21-best-raw",
+    "index_dir": "/path/to/data/full-wiki/wiki18-qrag-jul21-best-raw",
     "source_inputs": {
       "action_artifact": {
         "created_at": "2026-07-27T23:20:29.150804+00:00",
@@ -194,7 +194,7 @@
         "source": {
           "checkpoint": {
             "mtime_ns": 1784727318643171251,
-            "path": "/home/a.anokhin/Judge/Q-RAG-feedback/runs/Jul21_19-44-36_QRAG_HotPotQA+2WikiMultihopQA/model_best.pt",
+            "path": "/path/to/Q-RAG-feedback/runs/Jul21_19-44-36_QRAG_HotPotQA+2WikiMultihopQA/model_best.pt",
             "sha256": "865fc68fb9aa023224aac122257cc0671dcf0cedd343683cdcf40f8c00b55fa3",
             "size_bytes": 10999718469
           },
@@ -202,17 +202,17 @@
           "checkpoint_section": "critic",
           "config": {
             "mtime_ns": 1784663076015404124,
-            "path": "/home/a.anokhin/Judge/Q-RAG-feedback/runs/Jul21_19-44-36_QRAG_HotPotQA+2WikiMultihopQA/config.yaml",
+            "path": "/path/to/Q-RAG-feedback/runs/Jul21_19-44-36_QRAG_HotPotQA+2WikiMultihopQA/config.yaml",
             "sha256": "7e9c1792bdbc343451d6c9fcc36846e017da3086454e27c004b2d3d2734886d0",
             "size_bytes": 7673
           },
           "qrag_implementation": {
             "mtime_ns": 1784292288789738368,
-            "path": "/home/a.anokhin/Judge/Q-RAG-feedback/rl/bert_predictor.py",
+            "path": "/path/to/Q-RAG-feedback/rl/bert_predictor.py",
             "sha256": "7d82d0749afd0b57d1416dd6c39477f164fd710421f23faaadbd8a29e2f142c8",
             "size_bytes": 10798
           },
-          "run_dir": "/home/a.anokhin/Judge/Q-RAG-feedback/runs/Jul21_19-44-36_QRAG_HotPotQA+2WikiMultihopQA",
+          "run_dir": "/path/to/Q-RAG-feedback/runs/Jul21_19-44-36_QRAG_HotPotQA+2WikiMultihopQA",
           "state_dict_prefix": "action_embed."
         },
         "tokenizer_directory": "tokenizer",
@@ -233,7 +233,7 @@
           "tensors": 140
         }
       },
-      "candidate_index": "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte",
+      "candidate_index": "/path/to/data/full-wiki/wiki18-gte",
       "corpus": {
         "contents_field": "contents",
         "faiss_id_mapping": "zero-based JSONL row number",
@@ -241,13 +241,13 @@
         "rows": 21015324,
         "sha256": "43d7d3f58d01d711d95b00b70584211eea639fa46802905a4b7e11cf0617752d",
         "size_bytes": 14393573105,
-        "source_path": "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/data00/jiajie_jin/flashrag_indexes/wiki_dpr_100w/wiki_dump.jsonl",
+        "source_path": "/path/to/data/full-wiki/data00/jiajie_jin/flashrag_indexes/wiki_dpr_100w/wiki_dump.jsonl",
         "tar_member": null,
         "text_format": "raw",
         "validate_id_matches_row": true
       },
       "dataset": {
-        "path": "/home/a.anokhin/Judge/datasets/data_sources/hotpotqa/hotpot_dev_fullwiki_v1.json",
+        "path": "/path/to/data/hotpotqa/hotpot_dev_fullwiki_v1.json",
         "sha256": "2f1f3e594a3066a3084cc57950ca2713c24712adaad03af6ccce18d1846d5618",
         "size_bytes": 47454698
       },
@@ -257,7 +257,7 @@
         "model": "Alibaba-NLP/gte-multilingual-base",
         "resolved_revision": "9bbca17d9273fd0d03d5725c7a4b0f6b45142062"
       },
-      "index_dir": "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-qrag-jul21-best-raw"
+      "index_dir": "/path/to/data/full-wiki/wiki18-qrag-jul21-best-raw"
     },
     "source_run": "2026-08-02-gte-pool-diag"
   },
@@ -282,21 +282,21 @@
   "stages": [
     {
       "argv": [
-        "/home/a.anokhin/venvs/gpu/bin/python",
+        "/path/to/venv/bin/python",
         "candidate_pool.py",
         "select",
         "--input",
-        "/home/a.anokhin/Judge/full-wiki/runs/2026-08-02-gte-pool-diag/retrieval.jsonl",
+        "/path/to/repo/runs/2026-08-02-gte-pool-diag/retrieval.jsonl",
         "--index-dir",
-        "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-qrag-jul21-best-raw",
+        "/path/to/data/full-wiki/wiki18-qrag-jul21-best-raw",
         "--steps",
         "4",
         "--output",
-        "/home/a.anokhin/Judge/full-wiki/runs/2026-08-02-pool-oracle-chunks-k4/retrieval.jsonl",
+        "/path/to/repo/runs/2026-08-02-pool-oracle-chunks-k4/retrieval.jsonl",
         "--prefer",
         "gold-sentence",
         "--gold-source",
-        "/home/a.anokhin/Judge/datasets/data_sources/hotpotqa/hotpot_dev_distractor_v1.json"
+        "/path/to/data/hotpotqa/hotpot_dev_distractor_v1.json"
       ],
       "env": {
         "HF_HUB_OFFLINE": "1",
@@ -312,8 +312,8 @@
     },
     {
       "argv": [
-        "/home/a.anokhin/venvs/gpu/bin/python",
-        "/home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py",
+        "/path/to/venv/bin/python",
+        "/path/to/Q-RAG-feedback/answer_judge_llms.py",
         "--retriever-logfile",
         "<shard>.jsonl",
         "--output-file",

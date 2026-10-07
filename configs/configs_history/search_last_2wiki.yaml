@@ -1,25 +1,24 @@
-# Последний чекпоинт линии A на полном dev 2WikiMultiHopQA.
+# Last checkpoint of line A on the full 2WikiMultiHopQA dev set.
 #
-# Пара к search_best_2wiki.yaml; обоснование выбора — в
-# search_last_hotpotqa.yaml. Здесь та же проверка на втором in-domain
-# датасете: если разрыв best и last на HotpotQA окажется шумом, он должен
-# быть шумом и тут, а систематический перевес одного из чекпоинтов на обоих
-# датасетах сразу означал бы обратное.
-label: Прямой поиск, последний чекпоинт, 6 шагов, N=2
+# Paired with search_best_2wiki.yaml; see search_last_hotpotqa.yaml for the
+# rationale. The same check on the second in-domain dataset: if the best-last
+# gap on HotpotQA is noise, it should be noise here too, while a consistent
+# advantage of one checkpoint on both datasets would mean the opposite.
+label: Direct search, last checkpoint, 6 steps, N=2
 slug: lineA-last-2wiki
 dataset: 2wiki_dev
 
 order: 49
 hypothesis: >-
-  Разница best и last на 2Wiki укладывается в шум, как и на HotpotQA.
+  The best-last difference on 2Wiki is within noise, as on HotpotQA.
 
 retrieve:
   kind: search
-  index_dir: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte
-  qrag_repo: /home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki
-  checkpoint: /home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki/runs/Aug03_12-44-38_lineA_main/model_last.pt
+  index_dir: /path/to/data/full-wiki/wiki18-gte
+  qrag_repo: Q-RAG_for_full-wiki
+  checkpoint: Q-RAG_for_full-wiki/runs/Aug03_12-44-38_lineA_main/model_last.pt
   state_source: critic
-  input: /home/a.anokhin/Judge/datasets/data_sources/2WikiMultiHopQA/data_ids_april7/dev.json
+  input: /path/to/data/2WikiMultiHopQA/data_ids_april7/dev.json
   cuda_visible_devices: "2"
   device: cuda:0
   model_dtype: float32
@@ -31,7 +30,8 @@ retrieve:
   auto_prepare: false
 
 judge:
-  script: /home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py
+  script: src/answer_judge.py
+  contract: v1
   base_url: http://127.0.0.1:8010/v1
   answer_model: Qwen3-4B
   max_tokens: 1000

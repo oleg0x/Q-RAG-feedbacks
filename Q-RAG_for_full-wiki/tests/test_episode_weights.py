@@ -1,9 +1,9 @@
-"""Взвешенный выбор эпизода: холдаут исключается весом, а не фильтром.
+"""Weighted episode sampling: the holdout is excluded by weight, not a filter.
 
-Эпизоды тянет среда, а не датлоадер, поэтому сэмплер живёт в
-``DenseSearchEnv.reset``. Проверяется ровно то, ради чего он заведён: при
-равных весах распределение остаётся равномерным, при заданных — сходится к
-целевым долям, а нулевой вес не выпадает никогда.
+Episodes are drawn by the environment, not a dataloader, so the sampler lives
+in ``DenseSearchEnv.reset``. The tests check exactly what it exists for: equal
+weights keep the distribution uniform, given weights converge to the target
+shares, and a zero weight is never drawn.
 """
 
 from __future__ import annotations
@@ -58,11 +58,11 @@ def draw(env, count):
 
 
 def test_equal_weights_stay_uniform() -> None:
-    """χ² равных весов против равномерного: расхождение обязано быть шумом.
+    """χ² of equal weights against uniform: any deviation must be noise.
 
-    Восемь сидов сливаются в одну выборку намеренно: на одном сиде χ² сам по
-    себе лотерея (у сида 0 он равен 28 при ожидании 7), и тест ловил бы
-    неудачный жребий вместо смещения сэмплера.
+    Eight seeds are pooled into one sample on purpose: on a single seed χ² is a
+    lottery (28 for seed 0 against an expectation of 7), and the test would
+    catch an unlucky draw instead of sampler bias.
     """
     dataset = ListDataset([f"k{i}" for i in range(8)])
     per_seed = 20000
@@ -72,7 +72,7 @@ def test_equal_weights_stay_uniform() -> None:
     observed = np.array([counts[i] for i in range(8)], dtype=float)
     expected = 8 * per_seed / 8
     chi2 = float(((observed - expected) ** 2 / expected).sum())
-    # 7 степеней свободы: критическое значение 24.32 на уровне 0.001.
+    # 7 degrees of freedom: the critical value at the 0.001 level is 24.32.
     assert chi2 < 24.32, (chi2, observed)
 
 
@@ -86,7 +86,7 @@ def test_given_weights_converge_to_their_shares() -> None:
 
 
 def test_zero_weight_is_never_drawn() -> None:
-    """Holdout исключается именно этим: вес 0 не выпадает ни разу."""
+    """This is how the holdout is excluded: weight 0 is never drawn."""
     dataset = ListDataset([f"k{i}" for i in range(5)])
     counts = draw(make_env(dataset, np.array([1.0, 0.0, 1.0, 0.0, 1.0])), 20000)
     assert counts[1] == 0 and counts[3] == 0
@@ -94,7 +94,7 @@ def test_zero_weight_is_never_drawn() -> None:
 
 
 def test_without_weights_the_old_uniform_path_is_kept() -> None:
-    """Без файла весов выбор идёт прежним ``integers`` — бит в бит."""
+    """Without a weights file, sampling uses the old ``integers`` path, bit for bit."""
     dataset = ListDataset([f"k{i}" for i in range(6)])
     env = make_env(dataset, weights=None, seed=7)
     expected = np.random.default_rng(7).integers(6, size=50).tolist()
@@ -124,11 +124,11 @@ def test_load_weights_follows_dataset_order(tmp_path: Path) -> None:
 
 
 def test_missing_key_is_an_error_not_a_default(tmp_path: Path) -> None:
-    """Забытая строка — это тихое расширение обучающей выборки."""
+    """A forgotten line would quietly extend the training set."""
     dataset = ListDataset(["a", "b"])
     path = tmp_path / "w.jsonl"
     path.write_text(json.dumps({"key": "a", "w": 1.0}) + "\n", encoding="utf-8")
-    with pytest.raises(ValueError, match="нет веса"):
+    with pytest.raises(ValueError, match="no weight"):
         load_weights(path, dataset)
 
 
@@ -136,5 +136,5 @@ def test_all_zero_weights_are_an_error(tmp_path: Path) -> None:
     dataset = ListDataset(["a"])
     path = tmp_path / "w.jsonl"
     path.write_text(json.dumps({"key": "a", "w": 0.0}) + "\n", encoding="utf-8")
-    with pytest.raises(ValueError, match="нулевой"):
+    with pytest.raises(ValueError, match="total weight is zero"):
         load_weights(path, dataset)

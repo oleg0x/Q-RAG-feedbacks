@@ -1,30 +1,30 @@
 #!/usr/bin/env python3
-"""Разложить eval-таблицу Search-R1 на семь входов нашего пайплайна.
+"""Split the Search-R1 eval table into seven inputs for our pipeline.
 
-`PeterJinGo/nq_hotpotqa_train` называется train-датасетом, но его
-``test.parquet`` — это все семь бенчмарков Search-R1 в одной таблице, по
-колонке ``data_source``: nq, triviaqa, popqa, hotpotqa, 2wikimultihopqa,
-musique, bamboogle. Здесь она режется на семь JSONL, каждый из которых
-``fullwiki_qrag.py`` читает как обычный вход.
+`PeterJinGo/nq_hotpotqa_train` is named a train dataset, but its
+``test.parquet`` holds all seven Search-R1 benchmarks in one table, keyed by
+the ``data_source`` column: nq, triviaqa, popqa, hotpotqa, 2wikimultihopqa,
+musique, bamboogle. Here it is split into seven JSONL files, each of which
+``fullwiki_qrag.py`` reads as a regular input.
 
-Две вещи, которые тут делаются намеренно и без которых числа будут неверны.
+Two things are done here on purpose; without them the numbers are wrong.
 
-**``supporting_facts`` не пишется вовсе.** Gold-титулов в parquet нет ни у
-одного из семи датасетов, а пустой список — не то же самое, что отсутствие
-поля: ``title_metrics`` на пустом голде возвращает ``title_recall = title_em
-= 1.0``, то есть ран отчитался бы стопроцентным попаданием по титулам. Без
-поля ``add_eval_fields`` title-метрики просто не считает, и ``score_run``
-проставляет им ``null``.
+**``supporting_facts`` is not written at all.** None of the seven datasets
+has gold titles in the parquet, and an empty list is not the same as a
+missing field: on empty gold ``title_metrics`` returns ``title_recall =
+title_em = 1.0``, so the run would report a perfect title hit rate. Without
+the field ``add_eval_fields`` simply skips title metrics and ``score_run``
+sets them to ``null``.
 
-**Алиасы ответа сохраняются все.** Search-R1 считает EM максимумом по всему
-``golden_answers``, а ``answer_judge_llms.py`` (read-only) сравнивает с
-единственным ``answer``. Поэтому первый ответ идёт в ``answer``, остальные —
-в ``answer_aliases``, откуда их берут ``export_eval_json.py`` и
-``report_phase0.score_run`` для alias-версий EM и F1. Без этого TriviaQA (в
-среднем 14 допустимых ответов на вопрос, 88% вопросов с несколькими) окажется
-занижен в разы.
+**All answer aliases are kept.** Search-R1 computes EM as the maximum over
+all ``golden_answers``, whereas ``answer_judge_llms.py`` (read-only) compares
+against a single ``answer``. So the first answer goes to ``answer`` and the
+rest to ``answer_aliases``, where ``export_eval_json.py`` and
+``report_phase0.score_run`` pick them up for alias versions of EM and F1.
+Without this TriviaQA (14 accepted answers per question on average, 88% of
+questions with several) would be understated several-fold.
 
-Пример:
+Example:
 
     python src/build_searchr1_eval.py \
       --input runs/shared/searchr1/test.parquet \
@@ -44,9 +44,9 @@ from fullwiki_qrag import load_input_samples, sample_id
 
 LOG = logging.getLogger("build-searchr1-eval")
 
-# Ожидаемый состав таблицы. Проверяется при конвертации: сдвиг в числе
-# примеров означает, что скачался другой снимок датасета, и тогда наши числа
-# нельзя ставить рядом с опубликованными Search-R1.
+# Expected table composition, checked during conversion: a different number
+# of samples means a different dataset snapshot was downloaded, and then our
+# numbers cannot be put next to the published Search-R1 ones.
 EXPECTED_ROWS: dict[str, int] = {
     "nq": 3610,
     "triviaqa": 11313,
@@ -57,27 +57,27 @@ EXPECTED_ROWS: dict[str, int] = {
     "bamboogle": 125,
 }
 
-# Поля, которых в результате быть не должно. Список существует ради
-# ``supporting_facts``: пустой список молча превращает title-метрики в 100%,
-# см. заголовок модуля.
+# Fields that must not appear in the output. The list exists for
+# ``supporting_facts``: an empty list silently turns title metrics into 100%,
+# see the module docstring.
 FORBIDDEN_FIELDS = ("supporting_facts", "context", "sf_idx")
 
 
 def convert_sample(row: dict[str, Any], source: str) -> dict[str, Any]:
     question = row.get("question")
     if not isinstance(question, str) or not question.strip():
-        raise ValueError(f"{source}: пример {row.get('id')!r} без вопроса")
-    # Не `or []`: pandas отдаёт golden_answers массивом numpy, и проверка на
-    # истинность массива длиннее одного элемента — исключение, а не пустота.
+        raise ValueError(f"{source}: sample {row.get('id')!r} has no question")
+    # Not `or []`: pandas returns golden_answers as a numpy array, and the truth
+    # value of an array longer than one element raises instead of being empty.
     golden = row.get("golden_answers")
     answers = [] if golden is None else [str(value) for value in golden]
     answers = [value for value in answers if value.strip()]
     if not answers:
-        raise ValueError(f"{source}: у примера {row.get('id')!r} нет ответов")
+        raise ValueError(f"{source}: sample {row.get('id')!r} has no answers")
     return {
-        # Идентификатор в parquet уникален только внутри своего
-        # data_source: и у nq, и у popqa первая строка называется `test_0`.
-        # Префикс делает id уникальным во всём реестре ранов.
+        # The parquet id is unique only within its data_source: the first row
+        # of both nq and popqa is called `test_0`. The prefix makes the id
+        # unique across the whole run registry.
         "_id": f"{source}_{row['id']}",
         "data_source": source,
         "question": question,
@@ -92,32 +92,32 @@ def convert(rows: Sequence[dict[str, Any]], source: str) -> Iterator[dict[str, A
         leaked = [field for field in FORBIDDEN_FIELDS if field in record]
         if leaked:
             raise RuntimeError(
-                f"{source}: в записи оказались поля {leaked}; пустой "
-                "supporting_facts даёт title EM = 100% на пустом голде"
+                f"{source}: the record contains fields {leaked}; an empty "
+                "supporting_facts gives title EM = 100% on empty gold"
             )
         yield record
 
 
 def verify_output(path: Path, expected: Sequence[dict[str, Any]]) -> None:
-    """Перечитать результат тем же кодом, которым его прочитает пайплайн.
+    """Re-read the output with the same code the pipeline will read it with.
 
-    Проверяется не содержимое файла как текста, а то, что из него достанет
-    ``fullwiki_qrag.load_input_samples``: тот же порядок, те же вопросы, те же
-    идентификаторы и по-прежнему отсутствующий ``supporting_facts``.
+    What is checked is not the file as text but what
+    ``fullwiki_qrag.load_input_samples`` extracts from it: the same order,
+    questions and identifiers, and ``supporting_facts`` still absent.
     """
     reread = load_input_samples(path)
     if len(reread) != len(expected):
         raise RuntimeError(
-            f"{path.name}: перечитано {len(reread)} примеров вместо {len(expected)}"
+            f"{path.name}: re-read {len(reread)} samples instead of {len(expected)}"
         )
     for index, (actual, want) in enumerate(zip(reread, expected)):
         if actual["question"] != want["question"]:
-            raise RuntimeError(f"{path.name}: вопрос {index} не совпал после записи")
+            raise RuntimeError(f"{path.name}: question {index} differs after writing")
         if sample_id(actual, index) != want["_id"]:
-            raise RuntimeError(f"{path.name}: id {index} не совпал после записи")
+            raise RuntimeError(f"{path.name}: id {index} differs after writing")
         if actual.get("supporting_facts") is not None:
             raise RuntimeError(
-                f"{path.name}: у примера {index} появился supporting_facts"
+                f"{path.name}: sample {index} gained supporting_facts"
             )
 
 
@@ -126,8 +126,8 @@ def write_source(
 ) -> tuple[Path, int]:
     destination = directory / f"{source}.jsonl"
     records = list(convert(rows, source))
-    # Через временный файл: оборванная конвертация не должна оставить
-    # правдоподобный, но неполный вход для многочасового рана.
+    # Through a temporary file: an interrupted conversion must not leave a
+    # plausible but incomplete input for a multi-hour run.
     temporary = destination.with_suffix(destination.suffix + ".tmp")
     with temporary.open("w", encoding="utf-8") as stream:
         for record in records:
@@ -136,7 +136,7 @@ def write_source(
     verify_output(destination, records)
     with_aliases = sum(1 for record in records if record["answer_aliases"])
     LOG.info(
-        "%-16s %6d примеров, с алиасами %5d (%.0f%%) → %s",
+        "%-16s %6d samples, %5d with aliases (%.0f%%) → %s",
         source,
         len(records),
         with_aliases,
@@ -152,7 +152,7 @@ def load_table(path: Path) -> dict[str, list[dict[str, Any]]]:
     frame = pd.read_parquet(path)
     missing = {"id", "question", "golden_answers", "data_source"} - set(frame.columns)
     if missing:
-        raise ValueError(f"{path}: в таблице нет колонок {sorted(missing)}")
+        raise ValueError(f"{path}: the table lacks columns {sorted(missing)}")
     grouped: dict[str, list[dict[str, Any]]] = {}
     for row in frame.to_dict("records"):
         grouped.setdefault(str(row["data_source"]), []).append(row)
@@ -163,9 +163,10 @@ def check_composition(grouped: dict[str, list[dict[str, Any]]]) -> None:
     actual = {source: len(rows) for source, rows in grouped.items()}
     if actual != EXPECTED_ROWS:
         raise ValueError(
-            "Состав таблицы разошёлся с ожидаемым; наши числа нельзя ставить "
-            f"рядом с опубликованными Search-R1.\nожидалось: {EXPECTED_ROWS}\n"
-            f"получено:  {actual}"
+            "Table composition differs from the expected one; our numbers "
+            "cannot be put next to the published Search-R1 ones.\n"
+            f"expected: {EXPECTED_ROWS}\n"
+            f"got:      {actual}"
         )
 
 
@@ -190,15 +191,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     directory.mkdir(parents=True, exist_ok=True)
 
     grouped = load_table(source_path)
-    LOG.info("Прочитано %d датасетов: %s", len(grouped), source_path)
+    LOG.info("Read %d datasets: %s", len(grouped), source_path)
     check_composition(grouped)
 
     total = 0
-    # Порядок обхода — из EXPECTED_ROWS, а не из таблицы: лог должен читаться
-    # одинаково от запуска к запуску.
+    # Iterate in EXPECTED_ROWS order, not table order, so that the log reads
+    # the same from launch to launch.
     for source in EXPECTED_ROWS:
         total += write_source(grouped[source], source, directory)[1]
-    LOG.info("Записано %d примеров в %s", total, directory)
+    LOG.info("Wrote %d samples to %s", total, directory)
     return 0
 
 

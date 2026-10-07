@@ -38,8 +38,8 @@ LOG = logging.getLogger("report-phase0")
 
 
 def parse_run(spec: str) -> tuple[str, Path]:
-    # Разрез по последнему «=», а не по первому: label — человеческий текст
-    # и может содержать «=» («…, N=2»), а путь рана — никогда.
+    # Split on the last "=", not the first: a label is free text and may
+    # contain "=" ("…, N=2"), while a run path never does.
     label, separator, path = spec.rpartition("=")
     if not separator or not label.strip() or not path.strip():
         raise ValueError(f"Expected 'label=path', got {spec!r}")
@@ -51,20 +51,20 @@ def score_run(
     ceiling: float | None,
     aliases: dict[str, list[str]] | None = None,
 ) -> dict[str, Any]:
-    """Метрики одного рана из его reader/judge JSON.
+    """Metrics of one run from its reader/judge JSON.
 
-    Два поля необязательны, и оба — по одной причине: не у каждого датасета
-    есть то, из чего они считаются.
+    Two arguments are optional, both for the same reason: not every dataset
+    has what they are computed from.
 
-    ``ceiling`` отсутствует, когда у датасета нет gold-титулов. Тогда
-    title-метрики и доля потолка не занижаются и не обнуляются, а становятся
-    ``None``: ``title_metrics`` на пустом множестве gold-титулов возвращает
-    1.0, и молчаливая единица здесь была бы хуже отсутствующей метрики.
+    ``ceiling`` is absent when the dataset has no gold titles. Title metrics
+    and the share of ceiling then become ``None`` instead of being understated
+    or zeroed: ``title_metrics`` returns 1.0 on an empty set of gold titles,
+    and a silent 1.0 here would be worse than a missing metric.
 
-    ``aliases`` задан, когда официальный эвал датасета считает EM максимумом
-    по списку допустимых ответов, а ``answer_judge_llms.py`` (read-only)
-    сравнивает с единственным ``answer``. Тогда рядом с ``em``/``f1``
-    появляются ``em_alias``/``f1_alias``, посчитанные тем же кодом, что и в
+    ``aliases`` is set when the dataset's official eval takes EM as the
+    maximum over a list of acceptable answers, while ``answer_judge_llms.py``
+    compares against the single ``answer``. ``em_alias``/``f1_alias`` then
+    appear next to ``em``/``f1``, computed by the same code as in
     ``export_eval_json.py``.
     """
     # read_json insists on a JSON object; reader/judge output is an array.
@@ -73,9 +73,9 @@ def score_run(
     if not isinstance(records, list) or not records:
         raise ValueError(f"Expected a non-empty JSON array: {path}")
 
-    # Различие «поля нет» и «поле пустое» здесь существенно: пустой список
-    # gold-титулов — законное значение, а отсутствие ключа означает, что
-    # титулов у датасета нет вовсе и метрику считать не по чему.
+    # "Field missing" and "field empty" differ here: an empty list of gold
+    # titles is a valid value, while a missing key means the dataset has no
+    # titles at all and there is nothing to compute the metric from.
     has_titles = any("gold_titles" in record for record in records)
 
     rows = []
@@ -86,9 +86,10 @@ def score_run(
             "judge": float(record["LLM_Judge_Score"]),
             "chunks": len(record.get("pred_texts", [])),
             "empty": (record.get("prediction") or "") == "",
-            # Контракт v2 зовёт судью не на каждом примере, а вменяет единицу
-            # там, где сработал EM. Доля вменённых вердиктов отличает такой
-            # ран от старого, где `judge` — вердикт на каждом вопросе.
+            # Reward contract v2 does not call the judge on every example but
+            # imputes 1 where EM matched. The share of imputed verdicts tells
+            # such a run apart from an older one, where `judge` is a verdict on
+            # every question.
             "judge_imputed": bool(record.get("judge_imputed")),
         }
         if has_titles:
@@ -100,18 +101,18 @@ def score_run(
         if aliases is not None:
             prediction = record.get("prediction") or ""
             answer = str(record.get("answer") or "")
-            # Сверка перед использованием, как в export_eval_json.py: ``em``
-            # приходит из судейского файла, а ``em_alias`` считается здесь.
-            # Если нормализации разойдутся, alias-версия молча окажется ниже
-            # основной — то есть главное число таблицы станет неверным, и
-            # заметить это будет нечем. Дешевле упасть.
+            # Cross-check before use, as in export_eval_json.py: ``em``
+            # comes from the judge file, while ``em_alias`` is computed here.
+            # If the normalizations diverge, the alias version silently ends
+            # up below the primary one, so the headline number of the table
+            # becomes wrong with nothing to reveal it. Failing is cheaper.
             em_self, f1_self = best_over_aliases(prediction, [answer])
             if em_self != float(record["EM"]) or abs(f1_self - float(record["F1"])) > 1e-9:
                 raise ValueError(
-                    f"{path.name}, запись {index} ({record.get('id')!r}): "
-                    f"пересчёт по основному ответу даёт EM={em_self} F1={f1_self:.6f}, "
-                    f"а в файле судьи EM={record['EM']} F1={record['F1']}. "
-                    "Нормализация разъехалась — alias-метрикам верить нельзя."
+                    f"{path.name}, record {index} ({record.get('id')!r}): "
+                    f"primary answer gives EM={em_self} F1={f1_self:.6f}, "
+                    f"judge file has EM={record['EM']} F1={record['F1']}. "
+                    "Normalization has diverged; alias metrics cannot be trusted."
                 )
             targets = [answer, *aliases.get(str(record.get("id", index)), [])]
             em_alias, f1_alias = best_over_aliases(prediction, targets)
@@ -126,11 +127,11 @@ def score_run(
 
     scored: dict[str, Any] = {
         "em_per_sample": [row["em"] for row in rows],
-        # F1 и judge тоже покандидатно: EM бинарен, и на эффектах меньше
-        # процентного пункта McNemar по нему упирается в число дискордантных
-        # пар, тогда как парный t по непрерывной величине на тех же вопросах
-        # различает их уверенно (ablation квоты 2026-08-08: EM z = +2.4 против
-        # t(F1) = +3.44 на одних и тех же ранах).
+        # F1 and judge per sample too: EM is binary, and for effects below
+        # one percentage point McNemar on it is limited by the number of
+        # discordant pairs, while a paired t on a continuous measure over the
+        # same questions separates them confidently (in the inference-time
+        # quota ablation: EM z = +2.4 vs t(F1) = +3.44 on the same runs).
         "f1_per_sample": [row["f1"] for row in rows],
         "judge_per_sample": [row["judge"] for row in rows],
         "samples": len(rows),
@@ -210,12 +211,12 @@ def mcnemar(baseline: Sequence[float], variant: Sequence[float]) -> dict[str, An
 
 
 def paired_t(baseline: Sequence[float], variant: Sequence[float]) -> float:
-    """Парный t по непрерывной метрике на тех же вопросах.
+    """Paired t on a continuous metric over the same questions.
 
-    Нужен рядом с McNemar, а не вместо него: EM бинарен, поэтому весь его
-    сигнал сидит в дискордантных парах, и эффект в половину пункта на 7 405
-    вопросах он не разрешает. F1 и judge меняются на тех же вопросах
-    непрерывно, и та же разница выходит значимой (см. docstring score_run).
+    Needed alongside McNemar, not instead of it: EM is binary, so all its
+    signal sits in the discordant pairs, and it cannot resolve a half-point
+    effect on 7,405 questions. F1 and judge vary continuously on the same
+    questions, and the same difference comes out significant (see score_run).
     """
     if len(baseline) != len(variant):
         raise ValueError("Paired comparison needs equal-length runs")
@@ -224,34 +225,33 @@ def paired_t(baseline: Sequence[float], variant: Sequence[float]) -> float:
         return float("nan")
     mean = float(diff.mean())
     sd = float(diff.std(ddof=1))
-    # Нулевой разброс разностей — два разных случая, и путать их нельзя.
-    # Совпавшие построчно раны: разницы нет вовсе, t не определён. Постоянный
-    # сдвиг на всех вопросах без исключения: разница есть и она идеально
-    # согласована, то есть значимость бесконечна, а не отсутствует. На живых
-    # данных не встречается, но молча выдать «нет эффекта» на «эффект везде»
-    # — худшее, что может сделать эта функция.
+    # Zero spread of differences covers two distinct cases that must not be
+    # confused. Runs identical row by row: there is no difference and t is
+    # undefined. A constant shift on every single question: the difference is
+    # perfectly consistent, so significance is infinite, not absent. This does
+    # not occur on real data, but silently reporting "no effect" for "effect
+    # everywhere" is the worst thing this function could do.
     if sd == 0.0:
         return float("nan") if mean == 0.0 else float("inf") * (1 if mean > 0 else -1)
     return float(mean / (sd / np.sqrt(len(diff))))
 
 
 def render(scored: Sequence[tuple[str, dict[str, Any]]], ceiling: float | None) -> str:
-    """Таблица сравнения.
+    """Comparison table.
 
-    Форма зависит от того, что вообще посчиталось. Колонки title-метрик
-    остаются на месте с прочерками — так строки датасета без gold-титулов
-    видно как таковые, а не как ран, у которого ретривал промахнулся. Колонка
-    EM по алиасам появляется только там, где алиасы есть, и тогда жирным
-    выделена она: это определение EM официальных эвалов, и именно его надо
-    читать первым.
+    Its shape depends on what could be computed. Title metric columns stay in
+    place with dashes, so rows of a dataset without gold titles read as such,
+    not as runs whose retrieval missed. The alias EM column appears only where
+    aliases exist, and then it is the one in bold: it is the EM definition of
+    the official evals and should be read first.
     """
     has_alias = any("em_alias" in row for _, row in scored)
-    ceiling_note = "доля потолка" + (f" ({ceiling * 100:.1f}%)" if ceiling else "")
+    ceiling_note = "share of ceiling" + (f" ({ceiling * 100:.1f}%)" if ceiling else "")
     columns = [
-        "Конфигурация", "Чанков", "title recall", "title EM", ceiling_note,
+        "Configuration", "Chunks", "title recall", "title EM", ceiling_note,
     ]
-    columns += ["EM по алиасам"] if has_alias else []
-    columns += ["EM", "F1", "LLM Judge", "EM \\| попали", "EM \\| не попали"]
+    columns += ["alias EM"] if has_alias else []
+    columns += ["EM", "F1", "LLM Judge", "EM \\| hit", "EM \\| miss"]
     lines = ["| " + " | ".join(columns) + " |", "|" + "---|" * len(columns)]
     for label, row in scored:
         chunks = (
@@ -294,14 +294,14 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         type=Path,
         default=None,
         help="corpus_title_coverage.py output for the evaluated dataset; "
-             "опускается у датасетов без gold-титулов",
+             "omitted for datasets without gold titles",
     )
     parser.add_argument(
         "--aliases",
         type=Path,
         default=None,
-        help="файл датасета с answer_aliases: добавляет alias-версии EM и F1, "
-             "как их считают официальные эвалы",
+        help="dataset file with answer_aliases: adds alias versions of EM and "
+             "F1, as the official evals compute them",
     )
     parser.add_argument("--output", type=Path, default=None)
     parser.add_argument(
@@ -310,10 +310,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         nargs=2,
         default=[],
         metavar=("BASELINE", "VARIANT"),
-        # Два отдельных аргумента, а не «BASELINE=VARIANT»: обе стороны здесь
-        # человеческие метки, и обе могут содержать «=» («…, N=2»). У --run
-        # выручает rpartition, потому что путь знака равенства не содержит, а
-        # тут разрезать нечем и разбор молча даёт несуществующую метку.
+        # Two separate arguments rather than "BASELINE=VARIANT": both sides
+        # are free-text labels, and both may contain "=" ("…, N=2"). For --run,
+        # rpartition works because a path contains no equals sign, but here
+        # there is nothing to split on and parsing would silently yield a
+        # nonexistent label.
         help="paired McNemar comparison on EM between two --run labels",
     )
     parser.add_argument(
@@ -358,15 +359,15 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     by_label = dict(scored)
     pairs = {}
-    # Парный тест идёт по той же величине, что вынесена в таблицу жирным: там,
-    # где EM определён максимумом по алиасам, сравнивать одноответный EM
-    # значило бы проверять не то число, которое потом читают.
+    # The paired test uses the same quantity that is bold in the table: where
+    # EM is defined as the maximum over aliases, testing single-answer EM would
+    # check a different number from the one that gets read.
     vector = "em_alias_per_sample" if aliases is not None else "em_per_sample"
     if args.pair:
         print()
-        metric = "EM по алиасам" if aliases is not None else "EM"
+        metric = "alias EM" if aliases is not None else "EM"
         print(
-            f"| Сравнение (парный McNemar по {metric}) | побед | поражений | z "
+            f"| Comparison (paired McNemar on {metric}) | wins | losses | z "
             "| t(F1) | t(judge) |"
         )
         print("|---|---:|---:|---:|---:|---:|")
@@ -381,7 +382,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             result[name] = paired_t(base_row[key], variant_row[key])
         pairs[f"{baseline_label} → {variant_label}"] = result
         print(
-            f"| {variant_label} против {baseline_label} | {result['wins']} | "
+            f"| {variant_label} vs {baseline_label} | {result['wins']} | "
             f"{result['losses']} | {result['z']:+.1f} "
             f"| {result['t_f1']:+.2f} | {result['t_judge']:+.2f} |"
         )

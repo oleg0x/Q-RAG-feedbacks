@@ -22,9 +22,9 @@ def judged_record(**overrides) -> dict:
         "gold_titles": ["Gold A", "Gold B"],
         "title_em": 1.0,
         "title_recall": 1.0,
-        # F1 не выдуман: "dominion of canada" против "canada" даёт точность
-        # 1/3 при полноте 1, то есть ровно 0.5. Судейские числа здесь такие
-        # же, как посчитал бы answer_judge_llms.py.
+        # The F1 is not made up: "dominion of canada" vs "canada" gives
+        # precision 1/3 and recall 1, i.e. exactly 0.5. These judge numbers are
+        # what answer_judge_llms.py would compute.
         "EM": 0,
         "F1": 0.5,
         "LLM_Judge_Score": 1.0,
@@ -60,14 +60,14 @@ def test_without_aliases_the_two_versions_agree() -> None:
 
 
 def test_disagreement_with_the_judge_is_a_hard_error() -> None:
-    # Если наша нормализация разъедется с судейской, alias-метрики станут
-    # несравнимы с колонкой EM в таблице — тогда падать, а не публиковать.
-    with pytest.raises(RuntimeError, match="EM разошёлся"):
+    # If our normalization diverges from the judge's, alias metrics become
+    # incomparable with the EM column of the table: fail rather than publish.
+    with pytest.raises(RuntimeError, match="EM disagrees"):
         export.export_record(judged_record(EM=1), [], 0)
 
 
 def test_f1_disagreement_is_a_hard_error() -> None:
-    with pytest.raises(RuntimeError, match="F1 разошёлся"):
+    with pytest.raises(RuntimeError, match="F1 disagrees"):
         export.export_record(judged_record(F1=0.1), [], 0)
 
 
@@ -129,5 +129,5 @@ def test_aliases_are_resolved_through_answer_id(tmp_path) -> None:
         ),
         encoding="utf-8",
     )
-    # Таблица подхватывается по соседству с датасетом, без явного флага.
+    # The table is picked up next to the dataset, without an explicit flag.
     assert export.collect_aliases(dataset, None) == {"x": ["Canada"]}

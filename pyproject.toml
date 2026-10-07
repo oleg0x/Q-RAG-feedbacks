@@ -1,13 +1,11 @@
 [project]
 name = "fullwiki-qrag"
 version = "0.1.0"
-description = "Q-RAG на Wiki-18: ретривал по 21 млн чанков и answer-метрики на HotpotQA FullWiki"
+description = "Q-RAG on Wiki-18: direct search over 21M chunks and answer metrics on multi-hop and open-domain QA"
 requires-python = ">=3.11"
 
-# Версии — те, на которых сняты все опубликованные раны (см. docs/reproducibility.md).
-# Нижние границы, а не точные пины: код не использует ничего, что ломалось бы в
-# минорных обновлениях, но воспроизводимость числа в RESULTS.md гарантируется
-# только на этих.
+# Lower bounds rather than exact pins: the exact environment behind the reported
+# numbers is listed in requirements.txt.
 dependencies = [
     "torch>=2.10",
     "numpy>=2.2",
@@ -19,21 +17,35 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# faiss нужен только для сборки first-stage индекса
-# (build_index_wiki_gte.py, backend `faiss`). Для retrieval с
-# `candidate_backend: torch-cuda` он не требуется, поэтому вынесен отдельно.
+# faiss is only needed to build the first-stage index
+# (build_index_wiki_gte.py, backend `faiss`); direct search and retrieval with
+# `candidate_backend: torch-cuda` do not use it.
 index = ["faiss-cpu>=1.14"]
 dev = ["pytest>=9.0"]
+# Extra packages imported by the training code in Q-RAG_for_full-wiki/.
+train = [
+    "hydra-core>=1.3.2",
+    "omegaconf>=2.3.0",
+    "einops>=0.8.2",
+    "rotary-embedding-torch>=0.8.9",
+    "tensorboard>=2.20",
+    "rouge>=1.0.1",
+    "openai>=2.21",
+    "httpx>=0.28",
+    "pyarrow>=23.0",
+    "tqdm>=4.67",
+    "datasets>=4.3",
+    "nltk>=3.9",
+    "vllm>=0.17",
+]
 
 [tool.pytest.ini_options]
-# Тесты импортируют модули по имени (`from fullwiki_qrag import ...`), поэтому
-# на sys.path нужен `src/` независимо от того, откуда запущен pytest. Корень
-# добавлен ради `import exp`: драйвер остался точкой входа и лежит в нём.
+# Tests import modules by name (`from fullwiki_qrag import ...`), so `src/`
+# must be on sys.path regardless of where pytest is started; the root is added
+# for `import exp`.
 pythonpath = ["src", "."]
 testpaths = ["tests"]
 addopts = "-q"
-# Q-RAG_for_full-wiki/ — отдельный репозиторий следующей фазы со своими
-# зависимостями (envs, vLLM_clients, gig_pipeline) и своим запуском тестов.
-# Без исключения pytest пытается собрать его модули и падает на импортах ещё
-# до того, как дойдёт до тестов лаборатории.
+# Q-RAG_for_full-wiki/ is the training package with its own dependencies and
+# its own test run; without this exclusion pytest fails on its imports.
 norecursedirs = ["Q-RAG_for_full-wiki", "runs", ".git", "__pycache__"]

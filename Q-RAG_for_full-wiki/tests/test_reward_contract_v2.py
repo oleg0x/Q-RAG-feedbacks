@@ -1,9 +1,9 @@
-"""Контракт награды v2: варианты ответа и совпадение запросов с эвалом.
+"""Reward contract v2: answer aliases and request parity with evaluation.
 
-Награда обучения и колонка RESULTS.md обязаны быть одной величиной. Эвал
-(`Q-RAG-feedback/answer_judge_llms.py`) править нельзя, поэтому эталон — он, а
-проверяется здесь ровно то, чем обучение от него отличалось: разделитель
-чанков, что уходит судье, `max_tokens` судьи и рассуждающий ридер.
+The training reward and the evaluation metric must be the same quantity. The
+evaluation script (`answer_judge_llms.py`) is the reference, so this file checks
+exactly where training used to differ from it: the chunk separator, what is
+sent to the judge, the judge's `max_tokens` and the reasoning reader.
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ EVAL_SYS_QA = prompts.sys_qa
 
 
 class FakeClient:
-    """Клиент вместо vLLM: запоминает запросы и отдаёт заготовленные ответы."""
+    """Stand-in for vLLM: records requests and returns canned replies."""
 
     def __init__(self, replies):
         self.replies = list(replies)
@@ -33,7 +33,7 @@ class FakeClient:
     def chat_completion(self, **kwargs):
         self.calls.append(kwargs)
         if not self.replies:
-            raise AssertionError("Лишний запрос к vLLM")
+            raise AssertionError("Unexpected extra request to vLLM")
         return self.replies.pop(0), None
 
 
@@ -68,11 +68,11 @@ def reward_of(feedback, variants, prediction_chunks=("chunk one", "chunk two")):
 
 
 # --------------------------------------------------------------------------
-# варианты ответа
+# answer aliases
 
 
 def test_single_variant_reward_and_metrics_are_unchanged() -> None:
-    """Пример с одним ответом: EM срабатывает, судью не зовут."""
+    """Single-answer example: EM fires and the judge is not called."""
     feedback = make_feedback(["Final Answer: The Beatles"])
     assert reward_of(feedback, ["the beatles"]) == 1.0
     metrics = feedback.get_metrics()
@@ -83,18 +83,18 @@ def test_single_variant_reward_and_metrics_are_unchanged() -> None:
 
 
 def test_second_variant_wins_where_the_first_one_misses() -> None:
-    """Многовариантный пример: EM берёт максимум, судью звать не за чем.
+    """Multi-alias example: EM takes the max, no need to call the judge.
 
-    Ровно это и ломала склейка через ', ': предсказание сравнивалось со
-    строкой «Dai Xiuli, Dai Yongge, Yongge Dai», не совпадало ни с чем и
-    уезжало к судье.
+    Joining aliases with ', ' broke exactly this: the prediction was compared
+    with the string "Dai Xiuli, Dai Yongge, Yongge Dai", matched nothing and
+    went to the judge.
     """
     feedback = make_feedback(["Final Answer: Dai Yongge"])
     variants = ["Xiu Li Dai", "Dai Xiuli", "Dai Yongge", "Yongge Dai"]
     assert reward_of(feedback, variants) == 1.0
     metrics = feedback.get_metrics()
-    # EM по основному ответу — ноль, и он логируется отдельно: итоговая
-    # метрика ветки не должна незаметно подмениться alias-версией.
+    # EM against the primary answer is zero and is logged separately: the
+    # final metric must not be silently replaced by the alias version.
     assert metrics["EM"] == 0
     assert metrics["em_alias"] == 1
     assert metrics["answer_variants"] == 4
@@ -102,10 +102,10 @@ def test_second_variant_wins_where_the_first_one_misses() -> None:
 
 
 def test_joined_variants_would_have_missed() -> None:
-    """Прежнее поведение: склейка не совпадает ни с одним вариантом.
+    """Old behaviour: the joined string matches none of the aliases.
 
-    Тот же ответ на том же примере при склейке через ', ' даёт EM = 0 и уходит
-    к судье — цена, которую платил каждый второй пример NQ.
+    The same answer on the same example with aliases joined by ', ' gives
+    EM = 0 and goes to the judge, which affected about half of NQ examples.
     """
     feedback = make_feedback(
         ["Final Answer: Dai Yongge"], ["Final Answer: INCORRECT"]
@@ -122,8 +122,8 @@ def test_judge_is_called_with_all_variants_and_raw_strings() -> None:
     assert reward_of(feedback, ["1,000", "one thousand"]) == 1.0
     call = feedback.vllm_client_judge.calls[0]
     prediction, reference = call["two_answers"]
-    # Сырые строки, а не normalize_answer: судья только по ним и отличает
-    # «1,000» от «one thousand» — нормализация выкидывает пунктуацию.
+    # Raw strings, not normalize_answer: only they let the judge tell "1,000"
+    # from "one thousand", since normalization strips punctuation.
     assert prediction == "a thousand"
     assert reference == "1,000 | one thousand"
     metrics = feedback.get_metrics()
@@ -138,11 +138,11 @@ def test_answer_variants_falls_back_to_the_single_answer() -> None:
 
 
 # --------------------------------------------------------------------------
-# четыре расхождения с эвалом
+# four former discrepancies with evaluation
 
 
 def eval_reader_request(chunks, question):
-    """Запрос ридера ровно так, как его собирает answer_judge_llms.py."""
+    """Reader request exactly as answer_judge_llms.py builds it."""
     context = "\n\n".join(chunks)
     return f"CONTEXT:\n{context}\n\nQUESTION:\n{question}\n\nFinal Answer:"
 
@@ -165,7 +165,7 @@ def test_judge_prompt_differs_from_v1_only_in_the_reference_description() -> Non
     assert v1 != v2
     assert prompts.JUDGE_REFERENCE_V1 in v1
     assert prompts.JUDGE_REFERENCE_V2 in v2
-    # Строгость судьи не трогаем: меняется только описание эталона.
+    # Judge strictness is untouched: only the reference description changes.
     assert v2 == v1.replace(
         prompts.JUDGE_REFERENCE_V1, prompts.JUDGE_REFERENCE_V2
     )

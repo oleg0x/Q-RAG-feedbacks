@@ -106,7 +106,7 @@ def read_json(path: Path) -> dict[str, Any]:
     with path.open("r", encoding="utf-8") as stream:
         value = json.load(stream)
     if not isinstance(value, dict):
-        raise ValueError(f"Ожидался JSON-объект в {path}")
+        raise ValueError(f"Expected a JSON object in {path}")
     return value
 
 
@@ -137,8 +137,8 @@ def open_corpus(
     if container in {"tar", "gzip-tar"}:
         if not tar_member:
             raise ValueError(
-                f"{path} содержит tar-контейнер. Передайте путь JSONL внутри "
-                "архива через --tar-member; имена можно посмотреть командой "
+                f"{path} is a tar container. Pass the path of the JSONL inside "
+                "the archive via --tar-member; list member names with "
                 f"`tar -tf {path}`."
             )
         mode = "r|gz" if container == "gzip-tar" else "r|"
@@ -148,21 +148,21 @@ def open_corpus(
                     continue
                 if not member.isfile():
                     raise ValueError(
-                        f"Tar member {tar_member!r} не является обычным файлом"
+                        f"Tar member {tar_member!r} is not a regular file"
                     )
                 extracted = archive.extractfile(member)
                 if extracted is None:
-                    raise ValueError(f"Не удалось открыть tar member {tar_member!r}")
+                    raise ValueError(f"Could not open tar member {tar_member!r}")
                 with extracted:
                     yield extracted
                 return
-        raise ValueError(f"Tar member {tar_member!r} не найден в {path}")
+        raise ValueError(f"Tar member {tar_member!r} not found in {path}")
 
     compressed = container == "gzip"
     if compressed and path.suffix != ".gz":
-        LOG.warning("Корпус является gzip по magic bytes, несмотря на имя %s", path)
+        LOG.warning("Corpus is gzip by magic bytes despite its name: %s", path)
     elif not compressed and path.suffix == ".gz":
-        LOG.warning("Корпус имеет суффикс .gz, но не gzip magic bytes: %s", path)
+        LOG.warning("Corpus has a .gz suffix but no gzip magic bytes: %s", path)
     if compressed:
         with gzip.open(path, "rb") as stream:
             yield stream
@@ -183,7 +183,7 @@ def iter_corpus(
         for line_number, raw_line in enumerate(stream, 1):
             if not raw_line.strip():
                 raise ValueError(
-                    f"Пустая строка {line_number} в {path}; она нарушает mapping "
+                    f"Empty line {line_number} in {path}; it breaks the mapping "
                     "FAISS row id -> corpus row"
                 )
             try:
@@ -193,36 +193,36 @@ def iter_corpus(
                 context_end = min(len(raw_line), error.end + 8)
                 context = raw_line[context_start:context_end].hex(" ")
                 raise ValueError(
-                    f"Строка {line_number} в {path} не является UTF-8: "
-                    f"байт {error.start}, контекст hex={context}. "
-                    "Проверьте тип файла командой `file` и целостность дампа."
+                    f"Line {line_number} in {path} is not UTF-8: "
+                    f"byte {error.start}, context hex={context}. "
+                    "Check the file type with `file` and the dump integrity."
                 ) from error
             try:
                 item = json.loads(line)
             except json.JSONDecodeError as error:
                 raise ValueError(
-                    f"Некорректный JSON в строке {line_number}: {error}"
+                    f"Invalid JSON on line {line_number}: {error}"
                 ) from error
             if not isinstance(item, dict):
-                raise ValueError(f"Строка {line_number}: ожидался JSON-объект")
+                raise ValueError(f"Line {line_number}: expected a JSON object")
             if require_id and "id" not in item:
-                raise ValueError(f"Строка {line_number}: отсутствует поле 'id'")
+                raise ValueError(f"Line {line_number}: missing field 'id'")
             if validate_id_matches_row and "id" in item:
                 try:
                     corpus_id = int(item["id"])
                 except (TypeError, ValueError) as error:
                     raise ValueError(
-                        f"Строка {line_number}: id={item['id']!r} не является целым числом"
+                        f"Line {line_number}: id={item['id']!r} is not an integer"
                     ) from error
                 if corpus_id != row_id:
                     raise ValueError(
-                        f"Строка {line_number}: corpus id={corpus_id}, "
-                        f"но zero-based row id={row_id}"
+                        f"Line {line_number}: corpus id={corpus_id}, "
+                        f"but zero-based row id={row_id}"
                     )
             contents = item.get("contents")
             if not isinstance(contents, str) or not contents.strip():
                 raise ValueError(
-                    f"Строка {line_number}: поле 'contents' должно быть непустой строкой"
+                    f"Line {line_number}: field 'contents' must be a non-empty string"
                 )
             yield row_id, contents
             row_id += 1
@@ -242,7 +242,7 @@ def cached_sha256(path_string: str, size_bytes: int, mtime_ns: int) -> str:
     # the persisted identity. A plain `touch` therefore does not break resume.
     del size_bytes, mtime_ns
     path = Path(path_string)
-    LOG.info("Вычисляю SHA-256 исходного файла: %s", path)
+    LOG.info("Computing SHA-256 of the source file: %s", path)
     return sha256_file(path)
 
 
@@ -293,10 +293,10 @@ def assert_compatible_state(
             actual_corpus.setdefault("tar_member", None)
     if actual != expected_identity:
         raise RuntimeError(
-            "Параметры существующей сборки не совпадают с текущими. "
-            "Используйте прежние параметры или новый --output-dir.\n"
-            f"Существующие: {json.dumps(actual, ensure_ascii=False, sort_keys=True)}\n"
-            f"Текущие: {json.dumps(expected_identity, ensure_ascii=False, sort_keys=True)}"
+            "The existing build parameters do not match the current ones. "
+            "Use the previous parameters or a new --output-dir.\n"
+            f"Existing: {json.dumps(actual, ensure_ascii=False, sort_keys=True)}\n"
+            f"Current: {json.dumps(expected_identity, ensure_ascii=False, sort_keys=True)}"
         )
 
 
@@ -310,20 +310,20 @@ def discover_shards(shards_dir: Path, expected_dtype: str | None = None) -> list
         if not match:
             if path.name.endswith(".tmp"):
                 continue
-            raise RuntimeError(f"Неожиданный файл в каталоге shards: {path}")
+            raise RuntimeError(f"Unexpected file in the shards directory: {path}")
         start, end = map(int, match.groups())
         array = np.load(path, mmap_mode="r", allow_pickle=False)
         if array.ndim != 2:
-            raise RuntimeError(f"Shard {path} должен быть двумерным, shape={array.shape}")
+            raise RuntimeError(f"Shard {path} must be 2-D, shape={array.shape}")
         rows, dimension = array.shape
         if end - start != rows:
             raise RuntimeError(
-                f"Имя и shape shard не совпадают: {path}, rows={rows}"
+                f"Shard name and shape disagree: {path}, rows={rows}"
             )
         dtype = np.dtype(array.dtype).name
         if expected_dtype is not None and dtype != expected_dtype:
             raise RuntimeError(
-                f"Shard {path} имеет dtype={dtype}, ожидался {expected_dtype}"
+                f"Shard {path} has dtype={dtype}, expected {expected_dtype}"
             )
         shards.append(Shard(path, start, end, rows, dimension, dtype))
 
@@ -332,13 +332,13 @@ def discover_shards(shards_dir: Path, expected_dtype: str | None = None) -> list
     for shard in shards:
         if shard.start != expected_start:
             raise RuntimeError(
-                f"Непоследовательные shards: ожидался start={expected_start}, "
-                f"получен {shard.start} в {shard.path}"
+                f"Non-contiguous shards: expected start={expected_start}, "
+                f"got {shard.start} in {shard.path}"
             )
         expected_start = shard.end
         dimensions.add(shard.dimension)
     if len(dimensions) > 1:
-        raise RuntimeError(f"Shards имеют разные размерности: {sorted(dimensions)}")
+        raise RuntimeError(f"Shards have different dimensions: {sorted(dimensions)}")
     return shards
 
 
@@ -366,8 +366,8 @@ def parse_devices(value: str) -> list[str]:
     devices = [device.strip() for device in value.split(",")]
     if not devices or any(not device for device in devices):
         raise ValueError(
-            "--device должен быть одним устройством или списком через запятую, "
-            "например cuda:0,cuda:1"
+            "--device must be a single device or a comma-separated list, "
+            "e.g. cuda:0,cuda:1"
         )
     return devices
 
@@ -378,11 +378,11 @@ def load_sentence_transformer(args: argparse.Namespace) -> tuple[Any, str | None
         from sentence_transformers import SentenceTransformer
     except ImportError as error:
         raise RuntimeError(
-            "Для embedding-фазы установите torch и sentence-transformers>=3.0.0"
+            "The embedding phase requires torch and sentence-transformers>=3.0.0"
         ) from error
 
     devices = parse_devices(args.device)
-    LOG.info("Загружаю %s revision=%s на %s", args.model, args.revision, devices[0])
+    LOG.info("Loading %s revision=%s on %s", args.model, args.revision, devices[0])
     model = SentenceTransformer(
         args.model,
         revision=args.revision,
@@ -395,13 +395,13 @@ def load_sentence_transformer(args: argparse.Namespace) -> tuple[Any, str | None
     elif args.model_dtype == "bfloat16":
         model.bfloat16()
     elif args.model_dtype != "float32":
-        raise ValueError(f"Неизвестный model dtype: {args.model_dtype}")
+        raise ValueError(f"Unknown model dtype: {args.model_dtype}")
 
     dimension = model.get_sentence_embedding_dimension()
     if dimension != 768:
         raise RuntimeError(
-            f"Ожидалась размерность GTE 768, модель вернула {dimension}. "
-            "Проверьте checkpoint и truncate_dim."
+            f"Expected GTE dimension 768, the model returned {dimension}. "
+            "Check the checkpoint and truncate_dim."
         )
 
     resolved_revision: str | None = None
@@ -412,7 +412,7 @@ def load_sentence_transformer(args: argparse.Namespace) -> tuple[Any, str | None
         pass
 
     LOG.info(
-        "Модель готова: dim=%d, max_length=%d, resolved_revision=%s",
+        "Model ready: dim=%d, max_length=%d, resolved_revision=%s",
         dimension,
         model.max_seq_length,
         resolved_revision or "unknown",
@@ -462,27 +462,27 @@ def encode_texts(
             )
         else:
             raise RuntimeError(
-                "Установленная sentence-transformers не поддерживает multi-process encode"
+                "Installed sentence-transformers does not support multi-process encode"
             )
     # Explicit float32 conversion also makes bfloat16 inference portable to NumPy.
     if hasattr(embeddings, "detach"):
         embeddings = embeddings.detach().float().cpu().numpy()
     embeddings = np.asarray(embeddings, dtype=np.float32, order="C")
     if embeddings.ndim != 2 or embeddings.shape[1] != 768:
-        raise RuntimeError(f"Неожиданный shape embeddings: {embeddings.shape}")
+        raise RuntimeError(f"Unexpected embeddings shape: {embeddings.shape}")
     if not np.isfinite(embeddings).all():
-        raise RuntimeError("Модель вернула NaN или Inf")
+        raise RuntimeError("The model returned NaN or Inf")
 
     # normalize_embeddings=True runs in the model dtype. fp16/bfloat16 can
     # therefore have visible norm drift after conversion to float32. Normalize
     # once more in float32 so cached vectors have a stable invariant.
     norms = np.linalg.norm(embeddings, axis=1)
     if not np.isfinite(norms).all() or np.any(norms <= np.finfo(np.float32).tiny):
-        raise RuntimeError("Модель вернула вектор с нулевой или некорректной нормой")
+        raise RuntimeError("The model returned a vector with a zero or invalid norm")
     max_input_error = float(np.max(np.abs(norms - 1.0)))
     if max_input_error > 1e-3:
         LOG.debug(
-            "Перенормирую embeddings в float32: max |input norm - 1|=%.6g",
+            "Renormalizing embeddings in float32: max |input norm - 1|=%.6g",
             max_input_error,
         )
     embeddings /= norms[:, None]
@@ -491,7 +491,7 @@ def encode_texts(
     max_error = float(np.max(np.abs(normalized_norms - 1.0)))
     if max_error > 1e-3:
         raise RuntimeError(
-            "Нарушена float32 L2-нормализация после перенормировки: "
+            "float32 L2 normalization violated after renormalization: "
             f"max |norm - 1| = {max_error:.6g}"
         )
     return embeddings
@@ -523,7 +523,7 @@ def estimate_truncation(
     try:
         input_ids = tokenized["input_ids"]
     except (KeyError, TypeError) as error:
-        raise RuntimeError("Tokenizer не вернул поле input_ids") from error
+        raise RuntimeError("The tokenizer did not return input_ids") from error
     lengths = [len(ids) for ids in input_ids]
     return {
         "sampled_passages": len(lengths),
@@ -569,9 +569,9 @@ def encode_corpus(args: argparse.Namespace) -> tuple[list[Shard], dict[str, Any]
         orphaned_shards = list(shards_dir.glob("part-*.npy"))
         if orphaned_shards:
             raise RuntimeError(
-                f"В {shards_dir} есть shards, но отсутствует {state_path}. "
-                "Нельзя безопасно определить, какой моделью они созданы; "
-                "используйте новый --output-dir."
+                f"{shards_dir} contains shards but {state_path} is missing. "
+                "It is impossible to tell safely which model created them; "
+                "use a new --output-dir."
             )
         state = {
             "build_identity": build_identity,
@@ -586,13 +586,13 @@ def encode_corpus(args: argparse.Namespace) -> tuple[list[Shard], dict[str, Any]
     state_completed_rows = int(state.get("completed_rows", 0))
     if state_completed_rows > completed_rows:
         raise RuntimeError(
-            f"build-state сообщает {state_completed_rows} строк, "
-            f"а shards содержат {completed_rows}"
+            f"build-state reports {state_completed_rows} rows, "
+            f"but the shards contain {completed_rows}"
         )
     if state_completed_rows < completed_rows:
         # A crash can happen after the atomic shard rename but before state update.
         LOG.warning(
-            "Восстанавливаю build-state по проверенным shards: %d -> %d строк",
+            "Restoring build-state from verified shards: %d -> %d rows",
             state_completed_rows,
             completed_rows,
         )
@@ -601,12 +601,12 @@ def encode_corpus(args: argparse.Namespace) -> tuple[list[Shard], dict[str, Any]
 
     if state.get("embedding_complete"):
         if int(state.get("total_rows", -1)) != completed_rows:
-            raise RuntimeError("Неконсистентный завершённый build-state")
-        LOG.info("Embedding-фаза уже завершена: %d строк", completed_rows)
+            raise RuntimeError("Inconsistent completed build-state")
+        LOG.info("Embedding phase already complete: %d rows", completed_rows)
         return shards, state
 
     if completed_rows:
-        LOG.info("Продолжаю после %d уже закодированных строк", completed_rows)
+        LOG.info("Resuming after %d already encoded rows", completed_rows)
 
     model: Any | None = None
     pool: dict[str, Any] | None = None
@@ -629,13 +629,13 @@ def encode_corpus(args: argparse.Namespace) -> tuple[list[Shard], dict[str, Any]
                 and recorded_revision != loaded_revision
             ):
                 raise RuntimeError(
-                    "Модель изменилась между запусками: "
-                    f"раньше {recorded_revision}, сейчас {loaded_revision}. "
-                    "Используйте точный --revision или новый --output-dir."
+                    "The model changed between launches: "
+                    f"previously {recorded_revision}, now {loaded_revision}. "
+                    "Use an exact --revision or a new --output-dir."
                 )
             resolved_revision = loaded_revision or recorded_revision
             if len(devices) > 1:
-                LOG.info("Запускаю reusable multi-process pool на %s", devices)
+                LOG.info("Starting a reusable multi-process pool on %s", devices)
                 pool = model.start_multi_process_pool(target_devices=devices)
         truncation = estimate_truncation(
             model,
@@ -649,7 +649,7 @@ def encode_corpus(args: argparse.Namespace) -> tuple[list[Shard], dict[str, Any]
         if state.get("truncation_estimate"):
             estimate = state["truncation_estimate"]
             LOG.info(
-                "Оценка усечения при max_length=%d: %.3f%% (%d/%d), max=%d токенов",
+                "Truncation estimate at max_length=%d: %.3f%% (%d/%d), max=%d tokens",
                 args.max_length,
                 100.0 * estimate["estimated_truncation_rate"],
                 estimate["would_truncate"],
@@ -657,7 +657,7 @@ def encode_corpus(args: argparse.Namespace) -> tuple[list[Shard], dict[str, Any]
                 estimate["max_observed_tokens"],
             )
         LOG.info(
-            "Кодирую строки [%d, %d), batch_size=%d",
+            "Encoding rows [%d, %d), batch_size=%d",
             buffer_start,
             buffer_start + len(buffer),
             args.batch_size,
@@ -680,7 +680,7 @@ def encode_corpus(args: argparse.Namespace) -> tuple[list[Shard], dict[str, Any]
             }
         )
         atomic_write_json(state_path, state)
-        LOG.info("Сохранён %s", shard.path)
+        LOG.info("Saved %s", shard.path)
         buffer = []
         buffer_start = shard.end
 
@@ -698,8 +698,8 @@ def encode_corpus(args: argparse.Namespace) -> tuple[list[Shard], dict[str, Any]
                 continue
             if row_id != buffer_start + len(buffer):
                 raise RuntimeError(
-                    f"Нарушен порядок строк: row_id={row_id}, "
-                    f"ожидался {buffer_start + len(buffer)}"
+                    f"Row order violated: row_id={row_id}, "
+                    f"expected {buffer_start + len(buffer)}"
                 )
             buffer.append(contents)
             if len(buffer) >= args.shard_size:
@@ -707,13 +707,13 @@ def encode_corpus(args: argparse.Namespace) -> tuple[list[Shard], dict[str, Any]
 
         if total_rows < completed_rows:
             raise RuntimeError(
-                f"Корпус содержит {total_rows} строк, "
-                f"но shards уже содержат {completed_rows}"
+                f"The corpus has {total_rows} rows, "
+                f"but the shards already contain {completed_rows}"
             )
         flush_buffer()
     finally:
         if pool is not None and model is not None:
-            LOG.info("Останавливаю multi-process pool")
+            LOG.info("Stopping the multi-process pool")
             model.stop_multi_process_pool(pool)
 
     state.update(
@@ -727,7 +727,7 @@ def encode_corpus(args: argparse.Namespace) -> tuple[list[Shard], dict[str, Any]
         }
     )
     atomic_write_json(state_path, state)
-    LOG.info("Embedding-фаза завершена: %d строк", total_rows)
+    LOG.info("Embedding phase complete: %d rows", total_rows)
     return shards, state
 
 
@@ -736,7 +736,7 @@ def require_faiss() -> Any:
         import faiss
     except ImportError as error:
         raise RuntimeError(
-            "Для сборки индекса установите faiss-cpu или faiss-gpu"
+            "Building the index requires faiss-cpu or faiss-gpu"
         ) from error
     return faiss
 
@@ -744,16 +744,16 @@ def require_faiss() -> Any:
 def load_complete_state(args: argparse.Namespace) -> tuple[list[Shard], dict[str, Any]]:
     state_path = args.output_dir / STATE_FILE
     if not state_path.exists():
-        raise RuntimeError(f"Не найден {state_path}; сначала запустите embedding-фазу")
+        raise RuntimeError(f"{state_path} not found; run the embedding phase first")
     state = read_json(state_path)
     assert_compatible_state(state, requested_build_identity(args))
     if not state.get("embedding_complete"):
-        raise RuntimeError("Embedding-фаза ещё не завершена")
+        raise RuntimeError("The embedding phase is not complete yet")
     shards = discover_shards(args.output_dir / SHARDS_DIR, args.cache_dtype)
     total_rows = shards[-1].end if shards else 0
     if total_rows != int(state.get("total_rows", -1)):
         raise RuntimeError(
-            f"Shards содержат {total_rows} строк, build-state — {state.get('total_rows')}"
+            f"Shards have {total_rows} rows, build-state has {state.get('total_rows')}"
         )
     return shards, state
 
@@ -767,12 +767,12 @@ def verify_index(
 ) -> dict[str, Any]:
     if int(index.ntotal) != expected_rows:
         raise RuntimeError(
-            f"FAISS ntotal={index.ntotal}, ожидалось {expected_rows}"
+            f"FAISS ntotal={index.ntotal}, expected {expected_rows}"
         )
     if int(index.d) != expected_dimension:
-        raise RuntimeError(f"FAISS d={index.d}, ожидалось {expected_dimension}")
+        raise RuntimeError(f"FAISS d={index.d}, expected {expected_dimension}")
     if expected_rows == 0:
-        raise RuntimeError("Нельзя проверить пустой индекс")
+        raise RuntimeError("Cannot verify an empty index")
 
     count = min(sample_size, expected_rows)
     row_ids = random.Random(seed).sample(range(expected_rows), count)
@@ -781,12 +781,12 @@ def verify_index(
         copy=False,
     )
     if not np.isfinite(reconstructed).all():
-        raise RuntimeError("В реконструированных FAISS-векторах есть NaN или Inf")
+        raise RuntimeError("Reconstructed FAISS vectors contain NaN or Inf")
     norms = np.linalg.norm(reconstructed, axis=1)
     max_norm_error = float(np.max(np.abs(norms - 1.0)))
     if max_norm_error > 2e-3:
         raise RuntimeError(
-            f"FAISS-векторы не нормализованы: max |norm - 1|={max_norm_error:.6g}"
+            f"FAISS vectors are not normalized: max |norm - 1|={max_norm_error:.6g}"
         )
 
     return {
@@ -813,7 +813,7 @@ def build_flat_index(
     state: dict[str, Any],
 ) -> tuple[Path, dict[str, Any]]:
     if not shards:
-        raise RuntimeError("Нет embedding-shards")
+        raise RuntimeError("No embedding shards")
     faiss = require_faiss()
     dimension = shards[0].dimension
     total_rows = shards[-1].end
@@ -821,16 +821,16 @@ def build_flat_index(
     temporary = index_path.with_name(index_path.name + ".tmp")
 
     if index_path.exists():
-        LOG.info("Индекс уже существует, проверяю: %s", index_path)
+        LOG.info("Index already exists, verifying: %s", index_path)
         index = faiss.read_index(str(index_path))
         verification = verify_index(
             index, total_rows, dimension, args.verify_samples, args.seed
         )
     else:
-        LOG.info("Собираю IndexFlatIP: rows=%d, dim=%d", total_rows, dimension)
+        LOG.info("Building IndexFlatIP: rows=%d, dim=%d", total_rows, dimension)
         index = faiss.IndexFlatIP(dimension)
         for shard in shards:
-            LOG.info("Добавляю %s", shard.path.name)
+            LOG.info("Adding %s", shard.path.name)
             cached = np.load(shard.path, mmap_mode="r", allow_pickle=False)
             # FAISS normalization is in-place; copy even a float32 read-only memmap.
             vectors = np.array(cached, dtype=np.float32, order="C", copy=True)
@@ -839,16 +839,16 @@ def build_flat_index(
             index.add(vectors)
             if int(index.ntotal) != shard.end:
                 raise RuntimeError(
-                    f"После {shard.path} ntotal={index.ntotal}, ожидалось {shard.end}"
+                    f"After {shard.path} ntotal={index.ntotal}, expected {shard.end}"
                 )
 
         verification = verify_index(
             index, total_rows, dimension, args.verify_samples, args.seed
         )
-        LOG.info("Записываю временный индекс %s", temporary)
+        LOG.info("Writing temporary index %s", temporary)
         faiss.write_index(index, str(temporary))
         os.replace(temporary, index_path)
-        LOG.info("Индекс записан: %s", index_path)
+        LOG.info("Index written: %s", index_path)
 
     manifest = {
         "schema_version": 1,
@@ -904,10 +904,10 @@ def build_flat_index(
 def verify_existing_index(args: argparse.Namespace) -> dict[str, Any]:
     manifest_path = args.output_dir / MANIFEST_FILE
     if not manifest_path.exists():
-        raise RuntimeError(f"Не найден {manifest_path}")
+        raise RuntimeError(f"{manifest_path} not found")
     state_path = args.output_dir / STATE_FILE
     if not state_path.exists():
-        raise RuntimeError(f"Не найден {state_path}")
+        raise RuntimeError(f"{state_path} not found")
     state = read_json(state_path)
     assert_compatible_state(state, requested_build_identity(args))
     manifest = read_json(manifest_path)
@@ -921,7 +921,7 @@ def verify_existing_index(args: argparse.Namespace) -> dict[str, Any]:
         args.verify_samples,
         args.seed,
     )
-    LOG.info("Проверка успешна: %s", json.dumps(verification, ensure_ascii=False))
+    LOG.info("Verification passed: %s", json.dumps(verification, ensure_ascii=False))
     return verification
 
 
@@ -929,7 +929,7 @@ def delete_embedding_shards(args: argparse.Namespace, manifest: dict[str, Any]) 
     shards_dir = args.output_dir / SHARDS_DIR
     if not shards_dir.exists():
         return
-    LOG.warning("Удаляю embedding cache после успешной сборки: %s", shards_dir)
+    LOG.warning("Deleting the embedding cache after a successful build: %s", shards_dir)
     shutil.rmtree(shards_dir)
     manifest["embedding_cache"]["retained"] = False
     manifest["embedding_cache"]["deleted_at"] = utc_now()
@@ -938,25 +938,25 @@ def delete_embedding_shards(args: argparse.Namespace, manifest: dict[str, Any]) 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Потоковая сборка нормализованного GTE FlatIP-индекса для Wiki-18"
+        description="Streaming build of a normalized GTE FlatIP index for Wiki-18"
     )
     parser.add_argument("--corpus", type=Path, required=True, help="wiki-18.jsonl[.gz]")
     parser.add_argument(
         "--tar-member",
         default=None,
-        help="Путь JSONL внутри tar или gzip-compressed tar контейнера",
+        help="Path of the JSONL inside a tar or gzip-compressed tar container",
     )
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument(
         "--revision",
         default="main",
-        help="Лучше передать точный commit SHA модели для воспроизводимости",
+        help="Prefer an exact model commit SHA for reproducibility",
     )
     parser.add_argument(
         "--device",
         default="cuda",
-        help="Одно устройство или список через запятую: cuda:0,cuda:1,...",
+        help="A single device or a comma-separated list: cuda:0,cuda:1,...",
     )
     parser.add_argument(
         "--model-dtype",
@@ -969,20 +969,20 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--multi-process-chunk-size",
         type=int,
         default=1_000,
-        help="Число текстов в задании worker-процесса при multi-GPU",
+        help="Number of texts per worker-process job with multi-GPU",
     )
     parser.add_argument("--shard-size", type=int, default=100_000)
     parser.add_argument(
         "--truncation-samples-per-shard",
         type=int,
         default=2_048,
-        help="Сколько пассажей каждого shard токенизировать без усечения для оценки",
+        help="Passages per shard tokenized without truncation for the estimate",
     )
     parser.add_argument(
         "--cache-dtype",
         choices=("float32", "float16"),
         default="float32",
-        help="float32 — точнее; float16 — примерно вдвое меньше временного места",
+        help="float32 is more precise; float16 needs about half the temporary space",
     )
     parser.add_argument(
         "--phase",
@@ -995,23 +995,23 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--allow-missing-id",
         action="store_true",
-        help="Не требовать поле id; для PeterJinGo/wiki-18-corpus не нужно",
+        help="Do not require the id field; not needed for PeterJinGo/wiki-18-corpus",
     )
     parser.add_argument(
         "--allow-id-row-mismatch",
         action="store_true",
-        help="Не требовать int(item['id']) == zero-based row id",
+        help="Do not require int(item['id']) == zero-based row id",
     )
     parser.add_argument(
         "--trust-remote-code",
         action=argparse.BooleanOptionalAction,
         default=True,
-        help="Требуется текущей реализации Alibaba GTE",
+        help="Required by the current Alibaba GTE implementation",
     )
     parser.add_argument(
         "--delete-shards-after-build",
         action="store_true",
-        help="Освободить место только после записи и проверки итогового индекса",
+        help="Free the space only after the final index is written and verified",
     )
     parser.add_argument("--log-level", choices=("DEBUG", "INFO", "WARNING"), default="INFO")
     args = parser.parse_args(argv)
@@ -1019,7 +1019,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     args.corpus = args.corpus.expanduser().resolve()
     args.output_dir = args.output_dir.expanduser().resolve()
     if not args.corpus.is_file():
-        parser.error(f"Корпус не найден: {args.corpus}")
+        parser.error(f"Corpus not found: {args.corpus}")
     try:
         parse_devices(args.device)
     except ValueError as error:
@@ -1031,13 +1031,13 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         or args.multi_process_chunk_size <= 0
     ):
         parser.error(
-            "batch-size, shard-size, max-length и multi-process-chunk-size "
-            "должны быть положительными"
+            "batch-size, shard-size, max-length and multi-process-chunk-size "
+            "must be positive"
         )
     if args.truncation_samples_per_shard < 0:
-        parser.error("truncation-samples-per-shard не может быть отрицательным")
+        parser.error("truncation-samples-per-shard cannot be negative")
     if args.verify_samples <= 0:
-        parser.error("verify-samples должен быть положительным")
+        parser.error("verify-samples must be positive")
     return args
 
 
@@ -1049,7 +1049,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     if args.revision == "main":
         LOG.warning(
-            "revision=main изменяемый; для финального эксперимента передайте commit SHA"
+            "revision=main is mutable; pass a commit SHA for the final experiment"
         )
 
     if args.phase == "verify":
@@ -1062,11 +1062,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.phase == "all" and manifest_path.exists():
         state_path = args.output_dir / STATE_FILE
         if not state_path.exists():
-            raise RuntimeError(f"Есть {manifest_path}, но отсутствует {state_path}")
+            raise RuntimeError(f"{manifest_path} exists but {state_path} is missing")
         state = read_json(state_path)
         assert_compatible_state(state, requested_build_identity(args))
         verify_existing_index(args)
-        LOG.info("Готовый индекс уже существует; повторная сборка не требуется")
+        LOG.info("A finished index already exists; no rebuild needed")
         return 0
 
     if args.phase in {"all", "embed"}:
@@ -1080,7 +1080,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     _, manifest = build_flat_index(args, shards, state)
     if args.delete_shards_after_build:
         delete_embedding_shards(args, manifest)
-    LOG.info("Готово. Manifest: %s", args.output_dir / MANIFEST_FILE)
+    LOG.info("Done. Manifest: %s", args.output_dir / MANIFEST_FILE)
     return 0
 
 
@@ -1088,8 +1088,8 @@ if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except KeyboardInterrupt:
-        LOG.error("Прервано пользователем; готовые shards сохранены для продолжения")
+        LOG.error("Interrupted by user; finished shards are kept for resuming")
         raise SystemExit(130)
     except Exception as error:
-        LOG.error("Сборка завершилась с ошибкой: %s", error)
+        LOG.error("Build failed: %s", error)
         raise

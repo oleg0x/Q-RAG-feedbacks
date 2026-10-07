@@ -1,6 +1,6 @@
 max_steps: 2
 task: 2WikiMultihopQA
-data_path: /home/a.anokhin/Judge/datasets/data_sources/2WikiMultiHopQA/data_ids_april7
+data_path: /path/to/data/2WikiMultiHopQA/data_ids_april7
 sort_by_index: False
 
 positions_processor: none

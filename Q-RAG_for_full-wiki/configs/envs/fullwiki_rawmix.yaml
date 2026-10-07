@@ -1,10 +1,10 @@
-# Сырая смесь NQ + HotpotQA — та же, на которой учится Search-R1.
-# Отличие от fullwiki_search.yaml только в данных: множество действий, маски,
-# горизонт и exploration те же, меняется выборка эпизодов и её разметка.
+# NQ + HotpotQA raw mix, the same one Search-R1 is trained on.
+# Differs from fullwiki_search.yaml only in data: action set, masks, horizon and
+# exploration are the same; the episode sample and its labels change.
 #
-# Прошлая ветка училась на HotpotQA + 2Wiki и на однохопных бенчмарках не дала
-# ничего (на NQ знак отрицательный, 34.4 → 33.4). Смесь меняется под гипотезу,
-# что выучилось многошаговое поведение, а не поиск как таковой.
+# Training on HotpotQA + 2Wiki gave no gain on single-hop benchmarks (on NQ the
+# sign is negative, 34.4 → 33.4). The mix tests the hypothesis that the model
+# learned multi-hop behaviour rather than search as such.
 task: NQ+HotPotQA
 
 max_steps: 6
@@ -31,31 +31,31 @@ exploration:
     total: ${steps_count}
 
 index:
-  shard_dir: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte/embedding-shards
+  shard_dir: /path/to/data/full-wiki/wiki18-gte/embedding-shards
   rows: 21015324
   dim: 768
 
-title_table: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte/corpus-title-ids.npy
-corpus: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/data00/jiajie_jin/flashrag_indexes/wiki_dpr_100w/wiki_dump.jsonl
-offsets: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte/corpus-row-offsets.npy
+title_table: /path/to/data/full-wiki/wiki18-gte/corpus-title-ids.npy
+corpus: /path/to/data/full-wiki/data00/jiajie_jin/flashrag_indexes/wiki_dpr_100w/wiki_dump.jsonl
+offsets: /path/to/data/full-wiki/wiki18-gte/corpus-row-offsets.npy
 
-# Сырой parquet целиком, без фильтрации и без дедупликации против eval
-# (проверено: пересечения нет). Собирается src/build_train_mix.py лаборатории.
-train_data_path: /home/a.anokhin/Judge/full-wiki_v2/train_data
+# The whole raw parquet, without filtering or deduplication against eval
+# (checked: there is no overlap). Built by src/build_train_mix.py.
+train_data_path: ../train_data
 train_dataset:
   _target_: envs.RetrievalNqHotpotqa
   path: ${envs.train_data_path}/raw
   split: train
   seed: ${seed}
 
-# Веса эпизодов: 1 везде, 0 на holdout. Через этот файл — и исключение
-# holdout, и будущие фильтрованные руки A2/A3: при одном сиде они будут
-# отличаться только им, и последовательность примеров останется сопоставимой.
+# Episode weights: 1 everywhere, 0 on the holdout. This file handles both the
+# holdout exclusion and filtered variants: with the same seed they differ only
+# by this file, so the example sequence stays comparable.
 train_weights: ${envs.train_data_path}/weights/a1.jsonl
 
-# Валидация — тот же holdout, по 1000 примеров каждой половины смеси, и
-# кривые раздельные. Прошлая ветка мерила eval только по HotpotQA при обучении
-# на смеси: плато означало остановку роста одной половины, а не обучения.
+# Validation: the same holdout, 1000 examples from each half of the mix, with
+# separate curves. With eval on HotpotQA alone while training on the mix, a
+# plateau would only mean that one half stopped improving, not training.
 eval_dataset:
   _target_: envs.RetrievalNqHotpotqa
   path: ${envs.train_data_path}/raw

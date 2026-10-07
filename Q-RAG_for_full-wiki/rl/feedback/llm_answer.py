@@ -18,12 +18,12 @@ logger = logging.getLogger(__name__)
 
 
 class VllmUnavailableError(RuntimeError):
-    """Сервер молчит дольше порога — обучение обязано остановиться.
+    """The server has been silent longer than the threshold; training must stop.
 
-    Отличается от обычной ошибки запроса тем, что переживать её нечем:
-    пока сервер лежит, каждый эпизод остаётся без награды, и продолжать
-    значит писать в лог часы пустых кривых. Ловится в train-цикле, который
-    сохраняет чекпоинт и выходит.
+    Unlike an ordinary request error, there is nothing to ride it out with:
+    while the server is down every episode is left without a reward, and
+    continuing would only log hours of empty curves. Caught in the training
+    loop, which saves a checkpoint and exits.
     """
 
 OPEN_QA_TASKS = {
@@ -61,19 +61,19 @@ def get_final_answer(text: str) -> str:
 
 
 def answer_variants(info: dict) -> List[str]:
-    """Допустимые ответы эпизода — всегда список, даже когда он из одного.
+    """Accepted answers of an episode, always a list, even with a single item.
 
-    У NQ вариантов до 25, у HotpotQA ровно один. Датасеты без вариантов поля
-    не приносят, и тогда список собирается из единственного ``answer``:
-    награда на них не меняется ни на бит.
+    NQ has up to 25 aliases, HotpotQA exactly one. Datasets without aliases
+    do not provide the field, and the list is built from the single
+    ``answer``, so their reward does not change at all.
     """
     variants = info.get("answer_variants")
     if variants is None:
         variants = info.get("answer")
     if isinstance(variants, (list, tuple)):
-        # Пустой список — не «ответ пустой», а отсутствие голда; сравнивать
-        # с ним нечего, и max() по пустой последовательности упал бы внутри
-        # награды, то есть в потоке пула.
+        # An empty list means no gold, not an empty answer; there is nothing to
+        # compare with, and max() over an empty sequence would crash inside the
+        # reward, i.e. in a pool worker thread.
         return [str(item).strip() for item in variants] or [""]
     return [str(variants).strip()]
 
@@ -100,13 +100,13 @@ class LlmAnswer(AFeedbackModel):
         if retries < 1:
             raise ValueError(f"retries must be positive: {retries}")
         if thinking:
-            # Ридер эвала создаётся с thinking=False жёстко, и награда обязана
-            # быть той же величиной, что и колонка RESULTS.md. Рассуждающий
-            # ридер даёт другие ответы, то есть другую награду при том же
-            # ретривале — молча разойтись здесь дороже, чем упасть.
+            # The evaluation reader is hardwired to thinking=False, and the reward
+            # must be the same quantity as the evaluation metric. A reasoning
+            # reader gives different answers, i.e. a different reward for the same
+            # retrieval; silently diverging is worse than failing.
             raise ValueError(
-                "thinking=True разошёлся бы с эвалом, где ридер всегда "
-                "нерассуждающий"
+                "thinking=True would diverge from evaluation, where the reader "
+                "is always non-reasoning"
             )
 
         self.model = model
@@ -120,8 +120,8 @@ class LlmAnswer(AFeedbackModel):
         self.retry_backoff_max = retry_backoff_max
         self.stall_timeout = stall_timeout
         self.judge_max_tokens = judge_max_tokens
-        # Счётчики ошибок: без них падение сервера выглядит в логе просто как
-        # обвал награды, и отличить его от распада политики невозможно.
+        # Error counters: without them a server outage looks like a reward
+        # collapse in the log and cannot be told apart from policy degradation.
         self.error_count = 0
         self.request_count = 0
         self.last_transition_valid = True
@@ -137,9 +137,9 @@ class LlmAnswer(AFeedbackModel):
             thinking=thinking,
         )
 
-        # Судья контракта v2: эталон — список вариантов, отсюда и промпт с
-        # множественным числом. max_tokens 100, как у эвала: вердикт — одна
-        # строка, а 500 давали судье место уехать в рассуждение.
+        # Reward contract v2 judge: the reference is a list of aliases, hence
+        # the plural prompt. max_tokens 100 as in evaluation: the verdict is one
+        # line, and 500 gave the judge room to drift into reasoning.
         self.vllm_client_judge = BasicVllmClient(
             model=model,
             base_url=base_url,
@@ -179,12 +179,12 @@ class LlmAnswer(AFeedbackModel):
 
 
     def _call_with_retries(self, client, **kwargs):
-        """Запрос к vLLM с ретраями и экспоненциальным бэкоффом.
+        """vLLM request with retries and exponential backoff.
 
-        Сетевая ошибка и «контекст бесполезен» — разные события, и раньше они
-        приходили к обучению одним и тем же нулём. Здесь запрос сначала
-        повторяется, а если сервер молчит дольше `stall_timeout` подряд —
-        поднимается `VllmUnavailableError`: продолжать нечем.
+        A network error and "context is useless" are different events and must
+        not both reach training as zero. The request is retried first, and if
+        the server keeps failing for longer than `stall_timeout`,
+        `VllmUnavailableError` is raised: there is nothing to continue with.
         """
         delay = self.retry_backoff
         last_error = None
@@ -192,7 +192,7 @@ class LlmAnswer(AFeedbackModel):
             self.request_count += 1
             try:
                 result = client.chat_completion(**kwargs)
-            except Exception as error:  # сеть, таймаут, 5xx — всё сюда
+            except Exception as error:  # network, timeout, 5xx all land here
                 last_error = error
                 self.error_count += 1
                 if self._first_failure_at is None:
@@ -260,16 +260,16 @@ class LlmAnswer(AFeedbackModel):
             elif self.task == "MATH":
                 prediction = extract_boxed_expression(prediction)
 
-            # normalize_answer вместо strip().lower(): семантику награды это не
-            # меняет — строгость судьи проверена, расхождений нет, — но снимает
-            # вызовы судьи на ответах, отличающихся только пунктуацией и
-            # артиклями.
+            # normalize_answer instead of strip().lower(): the reward semantics
+            # are unchanged (judge strictness was checked, no disagreements), but
+            # it saves judge calls on answers differing only in punctuation and
+            # articles.
             normalized_prediction = normalize_answer(prediction)
             normalized_answer = normalize_answer(answer)
 
-            # EM по основному ответу логируется рядом: итоговая метрика ветки —
-            # чистый EM, и его расхождение с наградой обязано быть видно на
-            # каждой точке eval, а не в разборе потом.
+            # EM against the primary answer is logged alongside: the final metric
+            # is plain EM, and its gap to the reward must be visible at every
+            # eval point, not only in a post-hoc analysis.
             em = int(normalized_prediction == normalized_answer)
             em_alias = max(
                 int(normalized_prediction == normalize_answer(variant))
@@ -282,9 +282,9 @@ class LlmAnswer(AFeedbackModel):
             elif em_alias:
                 reward = 1.0
             else:
-                # Судье уходят сырые строки, а эталон — все варианты через
-                # " | ": нормализация выкидывает пунктуацию и артикли, из-за
-                # которых судья и отличает «1,000» от «one thousand».
+                # The judge gets raw strings, with all aliases joined by " | " as
+                # the reference: normalization strips the punctuation and articles
+                # that let the judge tell "1,000" from "one thousand".
                 judged = True
                 judgment, _ = self._call_with_retries(
                     self.vllm_client_judge,
@@ -298,22 +298,22 @@ class LlmAnswer(AFeedbackModel):
             raise
         except Exception as exc:
             mean_logprob = None
-            # Ретраи исчерпаны: награды нет, и ноль здесь был бы выдумкой.
-            # Переход помечается невалидным и в лосс не попадает.
+            # Retries exhausted: there is no reward, and zero would be made up.
+            # The transition is marked invalid and excluded from the loss.
             self.last_transition_valid = False
             logger.error("LlmAnswer reward failed: %s", exc)
 
-        # Награда — максимум EM по вариантам и вердикта судьи, поэтому обе её
-        # половины пишутся раздельно: reward == em_alias + judge_rescue, и без
-        # второй величины непонятно, чем именно растёт кривая.
+        # The reward is the max of alias EM and the judge verdict, so both parts
+        # are logged separately: reward == em_alias + judge_rescue, and without
+        # the second term it is unclear what drives the curve.
         self.last_metrics = {
             "pred": prediction,
             "EM": em,
             "em_alias": em_alias,
             "F1": f1,
             "LLM-as-judge": reward,
-            # Вердикт судьи — только там, где судью звали: вменённая единица
-            # на совпавшем EM смешала бы вменение с вердиктом.
+            # Judge verdict only where the judge was called: an imputed 1 on an
+            # EM match would mix imputation with verdicts.
             "judge": reward if judged else None,
             "answer_variants": len(variants),
             "mean_logprob": mean_logprob,
@@ -328,7 +328,7 @@ class LlmAnswer(AFeedbackModel):
 
 
     def error_stats(self) -> dict:
-        """Счётчики для мониторинга: ошибки vLLM идут в тот же лог, что и награда."""
+        """Monitoring counters: vLLM errors go to the same log as the reward."""
         return {
             "vllm_requests": self.request_count,
             "vllm_errors": self.error_count,

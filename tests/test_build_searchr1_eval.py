@@ -31,12 +31,12 @@ def test_single_answer_leaves_aliases_empty() -> None:
 
 
 def test_supporting_facts_is_absent_not_empty() -> None:
-    """Пустой список молча даёт title EM = 100%, отсутствие поля — ничего.
+    """An empty list silently gives title EM = 100%; a missing field gives none.
 
-    ``title_metrics`` на пустом множестве gold-титулов возвращает 1.0, а
-    ``add_eval_fields`` считает title-метрики только когда ``supporting_facts``
-    в примере есть. Разница между «нет поля» и «поле пустое» здесь и есть
-    разница между отсутствующей метрикой и стопроцентной.
+    ``title_metrics`` returns 1.0 on an empty set of gold titles, and
+    ``add_eval_fields`` computes title metrics only when the sample has
+    ``supporting_facts``. The difference between "no field" and "empty field"
+    is the difference between a missing metric and a perfect one.
     """
     record = searchr1.convert_sample(row(), "nq")
     for field in searchr1.FORBIDDEN_FIELDS:
@@ -44,7 +44,7 @@ def test_supporting_facts_is_absent_not_empty() -> None:
 
 
 def test_id_is_prefixed_by_source_because_ids_collide_between_datasets() -> None:
-    # И у nq, и у popqa первая строка называется test_0.
+    # The first row of both nq and popqa is called test_0.
     assert searchr1.convert_sample(row(), "nq")["_id"] == "nq_test_0"
     assert searchr1.convert_sample(row(), "popqa")["_id"] == "popqa_test_0"
 
@@ -52,21 +52,21 @@ def test_id_is_prefixed_by_source_because_ids_collide_between_datasets() -> None
 def test_blank_aliases_are_dropped_but_a_blank_gold_is_an_error() -> None:
     record = searchr1.convert_sample(row(golden_answers=["Paris", "  ", "paris"]), "nq")
     assert record["answer_aliases"] == ["paris"]
-    with pytest.raises(ValueError, match="нет ответов"):
+    with pytest.raises(ValueError, match="has no answers"):
         searchr1.convert_sample(row(golden_answers=["", "   "]), "nq")
 
 
 def test_missing_question_is_an_error() -> None:
-    with pytest.raises(ValueError, match="без вопроса"):
+    with pytest.raises(ValueError, match="has no question"):
         searchr1.convert_sample(row(question="  "), "nq")
 
 
 def test_composition_mismatch_is_refused() -> None:
-    """Другой снимок датасета — другие вопросы, и сравнение с Search-R1 рушится."""
+    """Another dataset snapshot means other questions and breaks Search-R1 parity."""
     grouped = {source: [None] * count for source, count in searchr1.EXPECTED_ROWS.items()}
     searchr1.check_composition(grouped)
     grouped["bamboogle"] = [None] * 124
-    with pytest.raises(ValueError, match="разошёлся"):
+    with pytest.raises(ValueError, match="differs from the expected"):
         searchr1.check_composition(grouped)
 
 
@@ -76,7 +76,7 @@ def test_written_file_reads_back_through_the_pipeline_loader(tmp_path) -> None:
     assert written == 2
     lines = path.read_text(encoding="utf-8").strip().split("\n")
     assert [json.loads(line)["_id"] for line in lines] == ["nq_test_0", "nq_test_1"]
-    # verify_output уже отработал внутри write_source; здесь проверяется, что
-    # он действительно ловит расхождение, а не просто ничего не делает.
-    with pytest.raises(RuntimeError, match="перечитано"):
+    # verify_output already ran inside write_source; here we check that it
+    # really catches a mismatch rather than doing nothing.
+    with pytest.raises(RuntimeError, match="re-read"):
         searchr1.verify_output(path, rows[:1])

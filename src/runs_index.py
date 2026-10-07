@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
-"""Сборка runs/INDEX.md и RESULTS.md из манифестов ранов.
+"""Build runs/INDEX.md and RESULTS.md from run manifests.
 
-INDEX.md — реестр: одна строка на ран, чтобы ответ на «что уже прогонялось»
-занимал один короткий файл, а не обход каталогов. RESULTS.md — витрина:
-таблица сравнения строится тем же ``report_phase0.py``, что и раньше, но
-список ранов берётся из манифестов, а не набирается флагами руками.
+INDEX.md is the registry: one line per run, so "what has already been run" is
+answered by one short file instead of walking directories. RESULTS.md holds
+the results tables: they are built by ``report_phase0.py``, with the run list
+taken from manifests rather than typed as flags by hand.
 
-    python src/runs_index.py                  пересобрать оба файла
-    python src/runs_index.py --only-index     без RESULTS.md (не нужен vLLM-раздел)
+    python src/runs_index.py                  rebuild both files
+    python src/runs_index.py --only-index     rebuild INDEX.md only
 
-В сравнение попадают раны со ``"status": "ok"`` и непустыми метриками,
-разложенные по датасетам: у каждого своя таблица со своим потолком покрытия
-корпуса, потому что 7 405 вопросов HotpotQA и 12 576 вопросов 2Wiki — это
-разные задачи, а не разные строки одной. Внутри датасета остаются раны с
-модальным числом примеров: смешивать smoke-ран на 20 вопросах и полный
-нельзя.
+Comparisons include runs with ``"status": "ok"`` and non-empty metrics,
+grouped by dataset: each dataset gets its own table with its own corpus
+coverage ceiling, because 7,405 HotpotQA questions and 12,576 2Wiki questions
+are different tasks, not different rows of one. Within a dataset only runs
+with the modal number of examples are kept: a 20-question smoke run must not
+be mixed with a full one.
 """
 
 from __future__ import annotations
@@ -34,83 +34,86 @@ RESULTS_FILE = runlib.REPO / "RESULTS.md"
 TABLE_START = "<!-- BEGIN GENERATED TABLE -->"
 TABLE_END = "<!-- END GENERATED TABLE -->"
 
-# Пары для парного теста МакНемара: сравнивать Q-RAG нужно с first-stage на
-# том же бюджете чанков, иначе таблица ничего не утверждает про вклад Q-RAG.
+# Pairs for the paired McNemar test: Q-RAG must be compared with first-stage
+# retrieval at the same chunk budget, otherwise the table says nothing about
+# the contribution of Q-RAG.
 DEFAULT_PAIRS = (
-    ("GTE top-2", "Q-RAG, 2 шага"),
-    ("GTE top-4", "Q-RAG, 4 шага"),
-    ("GTE top-6", "Q-RAG, 6 шагов"),
+    ("GTE top-2", "Q-RAG, 2 steps"),
+    ("GTE top-4", "Q-RAG, 4 steps"),
+    ("GTE top-6", "Q-RAG, 6 steps"),
     ("no retrieval", "GTE top-6"),
-    # Потолок реранкинга над тем же пулом: разрыв с GTE на том же бюджете
-    # чанков и есть то, что может выиграть обучение реранкера.
-    ("GTE top-2", "oracle по титулам, 2 чанка"),
-    ("GTE top-4", "oracle по титулам, 4 чанка"),
-    ("GTE top-6", "oracle по титулам, 6 чанков"),
-    # Цена выбора чанка по рангу: тот же oracle над тем же пулом, но чанк
-    # gold-титула выбирается по содержимому. Разница — то, что оракул по
-    # титулам не мог достать, а чанковый реранкер может.
-    ("oracle по титулам, 2 чанка", "oracle по чанкам, 2 чанка"),
-    ("oracle по титулам, 4 чанка", "oracle по чанкам, 4 чанка"),
-    ("oracle по титулам, 6 чанков", "oracle по чанкам, 6 чанков"),
-    # Что добавляет квота N=2 к чанк-осознанному выбору: та же верхняя
-    # граница, но реранкеру разрешено то же, что и ослабленной дедупликации.
-    ("oracle по чанкам, 2 чанка", "oracle по чанкам, 2 чанка, 2 на титул"),
-    ("oracle по чанкам, 6 чанков", "oracle по чанкам, 6 чанков, 2 на титул"),
-    # Ослабленная дедупликация против жёсткой на том же бюджете чанков.
-    ("GTE top-4", "GTE top-4, 2 чанка на титул"),
-    ("GTE top-6", "GTE top-6, 2 чанка на титул"),
-    # Refresh против fixed на том же бюджете шагов: режимы разные, поэтому
-    # пара нужна именно как парный тест, а не как соседние строки таблицы.
-    ("GTE top-2", "GTE refresh 1024, 2 шага"),
-    ("GTE top-4", "GTE refresh 1024, 4 шага"),
-    ("GTE top-6", "GTE refresh 1024, 6 шагов"),
-    # Цена обрезки запроса: те же шесть шагов refresh при 256 и 1024 токенах.
-    ("GTE refresh 256, 6 шагов", "GTE refresh 1024, 6 шагов"),
-    # Вклад обучения линии A: та же башня, тот же бюджет, отличается только
-    # чекпоинт. Пара одна на все датасеты — метки внутри группы уникальны,
-    # поэтому она разворачивается в свой тест на каждом из них.
+    # Reranking ceiling over the same pool: the gap to GTE at the same chunk
+    # budget is what reranker training can gain.
+    ("GTE top-2", "title oracle, 2 chunks"),
+    ("GTE top-4", "title oracle, 4 chunks"),
+    ("GTE top-6", "title oracle, 6 chunks"),
+    # Cost of picking a chunk by rank: the same oracle over the same pool, but
+    # the chunk of a gold title is chosen by content. The difference is what
+    # the title oracle could not reach and a chunk reranker can.
+    ("title oracle, 2 chunks", "chunk oracle, 2 chunks"),
+    ("title oracle, 4 chunks", "chunk oracle, 4 chunks"),
+    ("title oracle, 6 chunks", "chunk oracle, 6 chunks"),
+    # What the N=2 quota adds to chunk-aware selection: the same upper bound,
+    # but the reranker is allowed what relaxed deduplication allows.
+    ("chunk oracle, 2 chunks", "chunk oracle, 2 chunks, 2 per title"),
+    ("chunk oracle, 6 chunks", "chunk oracle, 6 chunks, 2 per title"),
+    # Relaxed versus strict deduplication at the same chunk budget.
+    ("GTE top-4", "GTE top-4, 2 chunks per title"),
+    ("GTE top-6", "GTE top-6, 2 chunks per title"),
+    # Refresh versus fixed at the same step budget: the modes differ, so the
+    # pair is needed as a paired test, not as neighbouring table rows.
+    ("GTE top-2", "GTE refresh 1024, 2 steps"),
+    ("GTE top-4", "GTE refresh 1024, 4 steps"),
+    ("GTE top-6", "GTE refresh 1024, 6 steps"),
+    # Cost of query truncation: the same six refresh steps at 256 and 1024 tokens.
+    ("GTE refresh 256, 6 steps", "GTE refresh 1024, 6 steps"),
+    # Contribution of line A training: the same tower and budget, only the
+    # checkpoint differs. One pair serves all datasets: labels are unique within
+    # a group, so it expands into a separate test on each of them.
     (
-        "Прямой поиск, zero-shot GTE, 6 шагов, N=2",
-        "Прямой поиск, обученная башня, 6 шагов, N=2",
+        "Direct search, zero-shot GTE, 6 steps, N=2",
+        "Direct search, trained tower, 6 steps, N=2",
     ),
-    # Обученный прямой поиск против сильнейшего first-stage на том же бюджете
-    # чанков: без этой строки цифра линии A сравнивается только сама с собой.
+    # Trained direct search versus the strongest first-stage retrieval at the
+    # same chunk budget: without this row line A is compared only with itself.
     (
-        "GTE top-6, 2 чанка на титул",
-        "Прямой поиск, обученная башня, 6 шагов, N=2",
+        "GTE top-6, 2 chunks per title",
+        "Direct search, trained tower, 6 steps, N=2",
     ),
-    # Цена выбора чекпоинта. Пик eval-кривой отстоит от плато примерно на одну
-    # сигму, поэтому «лучший» чекпоинт может оказаться argmax по шуму; парный
-    # тест на полном dev отвечает, значил ли этот выбор хоть что-то.
+    # Cost of checkpoint selection. The peak of the eval curve is about one
+    # sigma above the plateau, so the "best" checkpoint may be an argmax over
+    # noise; a paired test on the full dev set shows whether the choice mattered.
     (
-        "Прямой поиск, обученная башня, 6 шагов, N=2",
-        "Прямой поиск, последний чекпоинт, 6 шагов, N=2",
+        "Direct search, trained tower, 6 steps, N=2",
+        "Direct search, last checkpoint, 6 steps, N=2",
     ),
-    # Сколько ридер отвечает по памяти без всякого контекста. На мультихопных
-    # датасетах вопрос почти не стоял, а на однохопных бенчмарках Search-R1 он
-    # центральный: у них Direct Inference без ретривала даёт на TriviaQA .408
-    # при итоговых .638, то есть большая часть числа — знания модели.
-    ("no retrieval", "Прямой поиск, zero-shot GTE, 6 шагов, N=2"),
-    # Ablation квоты на инференсе, обе руки. Базой везде стоит N=2 — не потому
-    # что она лучше, а потому что она действующая: знак теста читается как
-    # «что даёт отклонение от умолчания». Zero-shot нужен как контроль: у него
-    # нет N при обучении, поэтому его кривая по N — чистый инференсный эффект,
-    # а разница форм двух кривых и есть цена рассогласования train/test.
+    # How much the reader answers from memory without any context. On
+    # multi-hop datasets this hardly matters, but on the single-hop Search-R1
+    # benchmarks it is central: their Direct Inference without retrieval gets
+    # .408 on TriviaQA against a final .638, so most of the number is the
+    # model's own knowledge.
+    ("no retrieval", "Direct search, zero-shot GTE, 6 steps, N=2"),
+    # Inference-time quota ablation, both arms. The baseline is N=2 everywhere,
+    # not because it is better but because it is the default: the sign of the
+    # test reads as "what deviating from the default gives". Zero-shot is the
+    # control: it had no N during training, so its curve over N is a pure
+    # inference effect, and the difference between the shapes of the two
+    # curves is the cost of the train/test mismatch.
     (
-        "Прямой поиск, обученная башня, 6 шагов, N=2",
-        "Прямой поиск, обученная башня, 6 шагов, N=1",
-    ),
-    (
-        "Прямой поиск, обученная башня, 6 шагов, N=2",
-        "Прямой поиск, обученная башня, 6 шагов, без квоты",
+        "Direct search, trained tower, 6 steps, N=2",
+        "Direct search, trained tower, 6 steps, N=1",
     ),
     (
-        "Прямой поиск, zero-shot GTE, 6 шагов, N=2",
-        "Прямой поиск, zero-shot GTE, 6 шагов, N=1",
+        "Direct search, trained tower, 6 steps, N=2",
+        "Direct search, trained tower, 6 steps, no quota",
     ),
     (
-        "Прямой поиск, zero-shot GTE, 6 шагов, N=2",
-        "Прямой поиск, zero-shot GTE, 6 шагов, без квоты",
+        "Direct search, zero-shot GTE, 6 steps, N=2",
+        "Direct search, zero-shot GTE, 6 steps, N=1",
+    ),
+    (
+        "Direct search, zero-shot GTE, 6 steps, N=2",
+        "Direct search, zero-shot GTE, 6 steps, no quota",
     ),
 )
 
@@ -124,8 +127,8 @@ def collect() -> list[tuple[Path, dict[str, Any], dict[str, Any] | None]]:
     for run in runlib.iter_run_dirs():
         manifest = runlib.read_manifest(run)
         collected.append((run, manifest, runlib.read_metrics(run)))
-    # Порядок строк задаётся полем order из конфига: baseline снизу вверх по
-    # силе, oracle последним. Раны без order уходят в конец по имени.
+    # Row order comes from the config's order field: baselines from weakest to
+    # strongest, oracle last. Runs without order go to the end, by name.
     return sorted(
         collected,
         key=lambda row: (row[1].get("config", {}).get("order", 10_000), row[0].name),
@@ -134,11 +137,11 @@ def collect() -> list[tuple[Path, dict[str, Any], dict[str, Any] | None]]:
 
 def render_index(rows: Sequence[tuple[Path, dict[str, Any], dict[str, Any] | None]]) -> str:
     lines = [
-        "# Реестр ранов",
+        "# Run registry",
         "",
-        "Генерируется `python exp.py index`. Руками не править.",
+        "Generated by `python exp.py index`. Do not edit by hand.",
         "",
-        "| Ран | Датасет | Метка | Реранкер | Шагов | Статус | EM | F1 | Judge | title EM |",
+        "| Run | Dataset | Label | Reranker | Steps | Status | EM | F1 | Judge | title EM |",
         "|---|---|---|---|---:|---|---:|---:|---:|---:|",
     ]
     for run, manifest, metrics in rows:
@@ -161,22 +164,20 @@ def render_index(rows: Sequence[tuple[Path, dict[str, Any], dict[str, Any] | Non
             f"| {percent(metrics.get('title_em'))} |"
         )
 
-    lines += ["", "## Прежние имена файлов", ""]
+    lines += ["", "## Legacy file names", ""]
     lines += [
-        "До 2026-07-28 раны лежали в плоском `runs/` с параметрами в именах.",
-        "Миграция (`src/migrate_runs.py`) перенесла файлы в каталоги ранов;",
-        "симлинки со старыми именами, какое-то время сохранявшиеся ради команд",
-        "из `docs/pipeline.md`, давно удалены. Точные команды каждого рана — в",
-        "его `cmd.sh`.",
+        "Runs made before the registry existed lived in a flat `runs/` with",
+        "parameters encoded in file names; `src/migrate_runs.py` moved them into",
+        "run directories. The exact commands of every run are in its `cmd.sh`.",
     ]
 
     lines += [
         "",
-        "## Архив",
+        "## Archive",
         "",
-        "Раны, исключённые из сравнения, `exp.py archive` уносит в",
-        "`runs/_archive/` и записывает причину в его README; каталог",
-        "появляется вместе с первым архивированным раном.",
+        "Runs excluded from comparison are moved by `exp.py archive` to",
+        "`runs/_archive/`, with the reason recorded in its README; the",
+        "directory appears with the first archived run.",
         "",
     ]
     return "\n".join(lines)
@@ -185,14 +186,14 @@ def render_index(rows: Sequence[tuple[Path, dict[str, Any], dict[str, Any] | Non
 def comparable(
     rows: Sequence[tuple[Path, dict[str, Any], dict[str, Any] | None]]
 ) -> dict[str, list[tuple[Path, dict[str, Any], dict[str, Any]]]]:
-    """Раны по датасетам; внутри датасета — только сопоставимые между собой.
+    """Runs grouped by dataset; within a dataset, only mutually comparable ones.
 
-    Отбор двухступенчатый, и обе ступени нужны. Датасеты разделяются жёстко:
-    у HotpotQA, 2Wiki и MuSiQue разные вопросы и разный потолок покрытия
-    корпуса, поэтому их строки нельзя ни ставить в одну таблицу, ни
-    сравнивать парным тестом. Внутри датасета отсеивается всё, что не
-    совпадает с модальным числом примеров: так из витрины выпадают
-    smoke-раны на 20 вопросах.
+    The selection has two stages, and both are needed. Datasets are separated
+    strictly: HotpotQA, 2Wiki and MuSiQue differ in questions and corpus
+    coverage ceiling, so their rows can neither share a table nor be compared
+    by a paired test. Within a dataset everything that does not match the
+    modal number of examples is dropped: this keeps 20-question smoke runs
+    out of the results tables.
     """
     groups: dict[str, list[tuple[Path, dict[str, Any], dict[str, Any]]]] = {}
     for run, manifest, metrics in rows:
@@ -202,8 +203,8 @@ def comparable(
         groups.setdefault(dataset, []).append((run, manifest, metrics))
 
     selected: dict[str, list[tuple[Path, dict[str, Any], dict[str, Any]]]] = {}
-    # Порядок таблиц задаётся реестром датасетов, а не порядком обхода
-    # каталогов: витрина не должна переставлять разделы от рана к рану.
+    # Table order follows the dataset registry, not directory traversal
+    # order: sections must not reshuffle from one run to the next.
     for dataset in runlib.DATASETS:
         members = groups.pop(dataset, [])
         if not members:
@@ -213,7 +214,7 @@ def comparable(
         dropped = [run.name for run, _, metrics in members if metrics["samples"] != full]
         if dropped:
             LOG.warning(
-                "Вне таблицы %s (другое число примеров, не %d): %s",
+                "Excluded from table %s (number of examples is not %d): %s",
                 dataset, full, ", ".join(dropped),
             )
         selected[dataset] = [
@@ -222,7 +223,7 @@ def comparable(
             if metrics["samples"] == full
         ]
     for dataset in groups:
-        LOG.warning("Датасет %s не зарегистрирован в runlib.DATASETS", dataset)
+        LOG.warning("Dataset %s is not registered in runlib.DATASETS", dataset)
     return selected
 
 
@@ -232,16 +233,16 @@ def build_dataset_table(
 ) -> str | None:
     meta = runlib.dataset_meta(dataset)
     labels = {manifest["config"]["label"] for _, manifest, _ in runs}
-    # Путь берётся у runlib, а не пишется строкой: подпроцесс идёт с
-    # cwd=REPO, а модуль лежит в src/, и голое имя здесь молча ломало
-    # `make report`, оставляя таблицу в RESULTS.md прежней.
+    # The path comes from runlib rather than a string literal: the subprocess
+    # runs with cwd=REPO while the module lives in src/, and a bare name here
+    # silently broke `make report`, leaving the RESULTS.md table stale.
     argv: list[str] = [
         str(runlib.VENV_PYTHON),
         str(runlib.pipeline_script("report_phase0.py")),
     ]
-    # Оба флага необязательны и по разным причинам: потолка нет там, где нет
-    # gold-титулов, алиасы есть только там, где официальный эвал считает EM
-    # максимумом по списку допустимых ответов.
+    # Both flags are optional, for different reasons: there is no ceiling
+    # without gold titles, and aliases exist only where the official eval takes
+    # EM as the maximum over the list of acceptable answers.
     if meta.get("coverage") is not None:
         argv += ["--coverage", str(meta["coverage"])]
     if meta.get("aliases") is not None:
@@ -252,14 +253,14 @@ def build_dataset_table(
     for baseline, variant in DEFAULT_PAIRS:
         if baseline in labels and variant in labels:
             argv += ["--pair", baseline, variant]
-    LOG.info("Пересчитываю таблицу %s: %d ранов", dataset, len(runs))
+    LOG.info("Recomputing table %s: %d runs", dataset, len(runs))
     completed = subprocess.run(
         argv, cwd=runlib.REPO, capture_output=True, text=True, check=False
     )
     if completed.returncode != 0:
-        LOG.error("report_phase0.py упал:\n%s", completed.stderr.strip()[-2000:])
+        LOG.error("report_phase0.py failed:\n%s", completed.stderr.strip()[-2000:])
         return None
-    # Отбрасываем итоговый JSON-дамп: в файле нужны только таблицы.
+    # Drop the trailing JSON dump: the file needs only the tables.
     table, _, _ = completed.stdout.partition("\n{")
     return table.rstrip()
 
@@ -267,7 +268,7 @@ def build_dataset_table(
 def build_results(rows) -> str | None:
     groups = comparable(rows)
     if not groups:
-        LOG.warning("Нет сопоставимых ранов, RESULTS.md не трогаю")
+        LOG.warning("No comparable runs, leaving RESULTS.md untouched")
         return None
     blocks = []
     for dataset, runs in groups.items():
@@ -277,13 +278,13 @@ def build_results(rows) -> str | None:
         meta = runlib.dataset_meta(dataset)
         samples = runs[0][2]["samples"]
         blocks.append(
-            f"### {meta['label']} — {samples} примеров\n\n{table}"
+            f"### {meta['label']} — {samples} examples\n\n{table}"
         )
     return "\n\n".join(blocks)
 
 
 def splice_results(table: str) -> None:
-    """Заменить сгенерированный блок в RESULTS.md, сохранив ручной разбор."""
+    """Replace the generated block in RESULTS.md, keeping the hand-written text."""
     text = RESULTS_FILE.read_text(encoding="utf-8")
     block = f"{TABLE_START}\n\n{table}\n\n{TABLE_END}"
     if TABLE_START in text and TABLE_END in text:
@@ -292,10 +293,10 @@ def splice_results(table: str) -> None:
         RESULTS_FILE.write_text(head + block + tail, encoding="utf-8")
     else:
         raise SystemExit(
-            f"В {RESULTS_FILE.name} нет маркеров {TABLE_START} / {TABLE_END}: "
-            "непонятно, куда вставлять таблицу"
+            f"{RESULTS_FILE.name} has no {TABLE_START} / {TABLE_END} markers: "
+            "nowhere to insert the table"
         )
-    LOG.info("Обновлён %s", RESULTS_FILE.name)
+    LOG.info("Updated %s", RESULTS_FILE.name)
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -315,7 +316,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     rows = collect()
     runlib.INDEX_FILE.write_text(render_index(rows) + "\n", encoding="utf-8")
-    LOG.info("Обновлён %s (%d ранов)", runlib.INDEX_FILE.name, len(rows))
+    LOG.info("Updated %s (%d runs)", runlib.INDEX_FILE.name, len(rows))
     if args.only_index:
         return 0
     table = build_results(rows)

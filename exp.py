@@ -1,31 +1,28 @@
 #!/usr/bin/env python3
-"""Драйвер экспериментов: конфиг → каталог рана → retrieve → judge → score.
+"""Experiment driver: config → run directory → retrieve → judge → score.
 
-Зачем он нужен. Раньше эксперимент запускался копипастой из README: retrieve
-с путями, вбитыми в ``case``, затем ``split -n l/32``, 32 процесса
-``answer_judge_llms.py``, ``jq -s add`` и ``report_phase0.py``. Пути выхода
-приходилось придумывать вручную, повторный запуск молча затирал результат, а
-знание «каким кодом и с какими флагами это получено» жило только в голове.
-
-Теперь один вызов::
+It replaces a manual sequence (retrieve, ``split -n l/32``, 32
+``answer_judge_llms.py`` processes, ``jq -s add``, ``report_phase0.py``) with
+one command that never overwrites a result silently and records which code
+and flags produced it. A single call::
 
     python exp.py run --config configs/qrag_steps6.yaml
 
-создаёт ``runs/<YYYY-MM-DD>-<slug>/``, пишет туда манифест с параметрами,
-хешами скриптов, коммитом и версиями окружения, прогоняет все стадии, ведёт
-``log.txt`` и кладёт рядом ``metrics.json``. Каталог рана отказывается
-перезаписываться без ``--resume``.
+creates ``runs/<YYYY-MM-DD>-<slug>/``, writes a manifest with the parameters,
+script hashes, commit and environment versions, runs every stage, keeps
+``log.txt`` and writes ``metrics.json`` next to it. A run directory is never
+overwritten without ``--resume``.
 
-Остальные подкоманды::
+Other subcommands::
 
-    python exp.py show <run_id>      компактная сводка рана
-    python exp.py list               все раны реестра
-    python exp.py index              пересобрать runs/INDEX.md и RESULTS.md
+    python exp.py show <run_id>      compact run summary
+    python exp.py list               all runs in the registry
+    python exp.py index              rebuild runs/INDEX.md and RESULTS.md
     python exp.py archive <run_id> --reason "..."
 
-Флаг ``--dry-run`` печатает точные argv всех стадий и ничего не выполняет:
-это основной режим, когда эксперимент готовится, но запускать его должен
-человек — GPU и vLLM стоят дорого.
+``--dry-run`` prints the exact argv of every stage and executes nothing: the
+mode for preparing an experiment that someone else will launch, since GPU and
+vLLM time is expensive.
 """
 
 from __future__ import annotations
@@ -44,9 +41,10 @@ from datetime import date
 from pathlib import Path
 from typing import Any, Sequence
 
-# Драйвер намеренно остался в корне: `python exp.py run …` — команда, которой
-# записаны все cmd.sh реестра и весь runbook, и переезд модулей в src/ не
-# должен её менять. Цена — эта вставка: без неё `import runlib` не находится.
+# The driver deliberately stays at the repo root: `python exp.py run …` is the
+# command recorded in every cmd.sh of the registry, and moving modules to src/
+# must not change it. The price is this insertion: without it `import runlib`
+# fails.
 SRC = Path(__file__).resolve().parent / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
@@ -62,8 +60,8 @@ LOG = logging.getLogger("exp")
 STAGES = ("retrieve", "judge", "score")
 OFFLINE_ENV = {"HF_HUB_OFFLINE": "1", "TRANSFORMERS_OFFLINE": "1"}
 
-# Стадии запускаются подпроцессами с cwd=runlib.REPO, поэтому пути к скриптам
-# относительные — в этом виде они и попадают в cmd.sh рана.
+# Stages run as subprocesses with cwd=runlib.REPO, so script paths are
+# relative; this is also how they appear in the run's cmd.sh.
 RETRIEVE_SCRIPT = "src/fullwiki_qrag.py"
 POOL_SCRIPT = "src/candidate_pool.py"
 VARIANTS_SCRIPT = "src/build_eval_variants.py"
@@ -74,53 +72,53 @@ class StageFailed(RuntimeError):
 
 
 # --------------------------------------------------------------------------
-# конфиг
+# config
 
 
 def load_config(path: Path) -> dict[str, Any]:
     with path.open("r", encoding="utf-8") as stream:
         config = yaml.safe_load(stream)
     if not isinstance(config, dict):
-        raise ValueError(f"Конфиг должен быть YAML-объектом: {path}")
+        raise ValueError(f"Config must be a YAML mapping: {path}")
     for key in ("label", "hypothesis", "retrieve"):
         if key not in config:
-            raise ValueError(f"В конфиге {path} нет обязательного поля {key!r}")
-    # Датасет проверяется до всего остального: опечатка в нём означает не
-    # только чужой потолок покрытия в metrics.json, но и чужую таблицу в
-    # RESULTS.md, а замечено это будет уже после часа GPU.
+            raise ValueError(f"Config {path} lacks required field {key!r}")
+    # The dataset is checked first: a typo there means a wrong coverage ceiling
+    # in metrics.json and a wrong table in RESULTS.md, noticed only after an
+    # hour of GPU time.
     if "dataset" in config and config["dataset"] not in runlib.DATASETS:
         raise ValueError(
-            f"Неизвестный dataset {config['dataset']!r} в {path}; известны: "
+            f"Unknown dataset {config['dataset']!r} in {path}; known: "
             f"{', '.join(runlib.DATASETS)}"
         )
     retrieve = config["retrieve"]
     kind = retrieve.get("kind")
     if kind not in ("qrag", "variant", "pool", "search"):
         raise ValueError(
-            f"retrieve.kind должен быть qrag, variant, pool или search, получено {kind!r}"
+            f"retrieve.kind must be qrag, variant, pool or search, got {kind!r}"
         )
     if kind == "search":
-        # steps у CLI имеет дефолт, но бюджет eval-рана обязан быть назван
-        # в конфиге явно: он определяет сравнимость строки в таблице.
+        # steps has a CLI default, but an eval run must name its budget
+        # explicitly in the config: it decides which table rows are comparable.
         for key in ("index_dir", "qrag_repo", "input", "steps"):
             if not retrieve.get(key):
-                raise ValueError(f"retrieve.{key} обязателен для kind=search")
+                raise ValueError(f"retrieve.{key} is required for kind=search")
     if kind == "variant":
         if retrieve.get("context") not in ("truncate", "none", "oracle"):
-            raise ValueError("retrieve.context: truncate, none или oracle")
+            raise ValueError("retrieve.context must be truncate, none or oracle")
         if not retrieve.get("source_run"):
-            raise ValueError("retrieve.source_run обязателен для kind=variant")
+            raise ValueError("retrieve.source_run is required for kind=variant")
     if kind == "pool":
         if not retrieve.get("source_run"):
-            raise ValueError("retrieve.source_run обязателен для kind=pool")
+            raise ValueError("retrieve.source_run is required for kind=pool")
         if not retrieve.get("index_dir"):
-            raise ValueError("retrieve.index_dir обязателен для kind=pool")
+            raise ValueError("retrieve.index_dir is required for kind=pool")
         if not retrieve.get("steps"):
-            raise ValueError("retrieve.steps обязателен для kind=pool")
+            raise ValueError("retrieve.steps is required for kind=pool")
         if retrieve.get("prefer") == "gold-sentence" and not retrieve.get("gold_source"):
             raise ValueError(
-                "retrieve.gold_source обязателен при prefer=gold-sentence: "
-                "gold-предложения есть только в hotpot_dev_distractor_v1.json"
+                "retrieve.gold_source is required with prefer=gold-sentence: "
+                "gold sentences exist only in hotpot_dev_distractor_v1.json"
             )
     config.setdefault("judge", {})
     config["config_file"] = path.name
@@ -137,7 +135,7 @@ def resolve_run_id(config: dict[str, Any], args: argparse.Namespace) -> str:
 
 
 # --------------------------------------------------------------------------
-# запуск стадий
+# running stages
 
 
 def child_environment(extra: dict[str, str] | None = None, drop: Sequence[str] = ()) -> dict[str, str]:
@@ -154,7 +152,7 @@ def run_process(
     log_path: Path,
     environment: dict[str, str] | None = None,
 ) -> int:
-    """Запустить процесс, направив stdout и stderr в общий лог рана."""
+    """Run a process with stdout and stderr appended to the run log."""
     LOG.info("$ %s", " ".join(argv))
     with log_path.open("a", encoding="utf-8") as log:
         log.write(f"\n$ {' '.join(argv)}\n")
@@ -200,8 +198,9 @@ def retrieve_argv(config: dict[str, Any], run: Path) -> list[str]:
         argv.append(
             "--dedupe-titles" if retrieve.get("dedupe_titles", True) else "--no-dedupe-titles"
         )
-        # Флаг добавляется только когда квота задана явно: иначе argv всех
-        # прежних конфигов изменился бы, а он попадает в манифест и cmd.sh.
+        # The flag is added only when the quota is set explicitly: otherwise
+        # the argv of every earlier config would change, and it goes into the
+        # manifest and cmd.sh.
         if retrieve.get("max_chunks_per_title") is not None:
             argv += [
                 "--max-chunks-per-title",
@@ -235,8 +234,8 @@ def retrieve_argv(config: dict[str, Any], run: Path) -> list[str]:
             "--max-chunks-per-title", str(retrieve.get("max_chunks_per_title", 2)),
             "--log-candidates", str(retrieve.get("log_candidates", "none")),
         ]
-        # Без чекпоинта башня — стоковая GTE: это zero-shot ступени 3
-        # лестницы, стартовая точка, против которой читаются обученные цифры.
+        # Without a checkpoint the tower is stock GTE: the zero-shot starting
+        # point that trained numbers are read against.
         if retrieve.get("checkpoint"):
             argv += ["--checkpoint", str(retrieve["checkpoint"])]
             argv += ["--state-source", str(retrieve.get("state_source", "critic"))]
@@ -257,8 +256,8 @@ def retrieve_argv(config: dict[str, Any], run: Path) -> list[str]:
             "--steps", str(retrieve["steps"]),
             "--output", output,
         ]
-        # Оба флага добавляются только когда заданы: argv прежних конфигов
-        # обязан остаться прежним, он попадает в манифест и cmd.sh.
+        # Both flags are added only when set: the argv of earlier configs must
+        # stay unchanged, since it goes into the manifest and cmd.sh.
         if retrieve.get("prefer"):
             argv += ["--prefer", str(retrieve["prefer"])]
             argv += ["--gold-source", str(retrieve["gold_source"])]
@@ -281,32 +280,30 @@ def retrieve_argv(config: dict[str, Any], run: Path) -> list[str]:
 
 
 def jsonl_lines(path: Path) -> list[str]:
-    """Строки JSONL, разрезанные только по ``\\n``.
+    """JSONL lines, split on ``\\n`` only.
 
-    Не ``splitlines()``. Тот считает переводом строки ещё восемь символов, и
-    три из них — U+0085, U+2028, U+2029 — больше 0x1F, поэтому ``json.dumps``
-    оставляет их в файле как есть (остальные пять он экранирует). Запись, внутри
-    которой такой символ оказался, разваливается на две, судья получает обломок
-    и падает на ``JSONDecodeError``, а число записей в логе тихо расходится с
-    входом — то есть неверный результат отличим от верного только по этому
-    расхождению, если на него посмотреть.
+    Not ``splitlines()``: it treats eight more characters as line breaks, and
+    three of them (U+0085, U+2028, U+2029) are above 0x1F, so ``json.dumps``
+    leaves them in the file unescaped (it escapes the other five). A record
+    containing such a character falls apart in two, the judge gets a fragment
+    and fails with ``JSONDecodeError``, and the record count in the log
+    silently diverges from the input.
 
-    Так и случилось: у трёх вопросов TriviaQA из eval-таблицы Search-R1 внутри
-    текста стоит U+0085 (NEXT LINE), 11 313 записей превратились в 11 316, и
-    три шарда из тридцати двух упали.
+    This is not hypothetical: a few TriviaQA questions in the Search-R1 eval
+    set contain U+0085 (NEXT LINE).
     """
     text = path.read_text(encoding="utf-8")
     return [line for line in text.split("\n") if line.strip()]
 
 
 def check_jsonl_shape(lines: Sequence[str], path: Path) -> None:
-    """Убедиться, что каждая строка — целый JSON-объект, до запуска судьи.
+    """Check that every line is a complete JSON object before the judge starts.
 
-    Проверка формы, а не разбор: полный ``json.loads`` на сотнях мегабайт стоит
-    десятки секунд на ран, а обломок развалившейся записи ловится тем, что не
-    начинается с ``{`` или не заканчивается ``}``. Без неё поломка входа
-    проявляется как «три шарда из тридцати двух упали» через четыре минуты
-    работы тридцати двух процессов.
+    A shape check rather than a parse: a full ``json.loads`` over hundreds of
+    megabytes costs tens of seconds per run, while a fragment of a broken
+    record is caught by not starting with ``{`` or not ending with ``}``.
+    Without it a broken input shows up only as a few failed shards after
+    minutes of work by 32 processes.
     """
     broken = [
         number
@@ -315,11 +312,11 @@ def check_jsonl_shape(lines: Sequence[str], path: Path) -> None:
     ]
     if broken:
         raise StageFailed(
-            f"{path}: строки {broken[:5]}"
-            f"{' и ещё ' + str(len(broken) - 5) if len(broken) > 5 else ''} "
-            "не являются целыми JSON-объектами. Обычная причина — символ, "
-            "который json.dumps не экранирует, а разрезающий код считает "
-            "переводом строки (см. jsonl_lines)."
+            f"{path}: lines {broken[:5]}"
+            f"{' and ' + str(len(broken) - 5) + ' more' if len(broken) > 5 else ''} "
+            "are not complete JSON objects. The usual cause is a character "
+            "that json.dumps does not escape but the splitting code treats "
+            "as a line break (see jsonl_lines)."
         )
 
 
@@ -333,16 +330,16 @@ def stage_retrieve(config: dict[str, Any], run: Path) -> dict[str, Any]:
     code = run_process(argv, run / runlib.LOG_FILE, child_environment(extra))
     output = run / runlib.RETRIEVAL_FILE
     if code != 0 or not output.exists():
-        raise StageFailed(f"retrieve завершился с кодом {code}, см. {run / runlib.LOG_FILE}")
+        raise StageFailed(f"retrieve exited with code {code}, see {run / runlib.LOG_FILE}")
 
-    # У build_eval_variants.py и candidate_pool.py нет своего --max-samples:
-    # производный набор обязан повторять исходный ран целиком. Для
-    # smoke-прогонов урезаем его здесь, уже после того как вариант собран.
+    # build_eval_variants.py and candidate_pool.py have no --max-samples of
+    # their own: a derived set must mirror the whole source run. For smoke runs
+    # it is truncated here, after the variant is built.
     limit = retrieve.get("max_samples")
     if limit and retrieve["kind"] in ("variant", "pool"):
         lines = jsonl_lines(output)[:limit]
         output.write_text("\n".join(lines) + "\n", encoding="utf-8")
-        LOG.info("Smoke-режим: оставлено %d записей", len(lines))
+        LOG.info("Smoke mode: kept %d records", len(lines))
     return {
         "name": "retrieve",
         "argv": argv,
@@ -357,12 +354,13 @@ def stage_retrieve(config: dict[str, Any], run: Path) -> dict[str, Any]:
 
 
 def judge_settings(config: dict[str, Any]) -> dict[str, Any]:
-    """Настройки стадии judge с умолчаниями.
+    """Judge stage settings with defaults.
 
-    Скрипт — наш форк, а не read-only оригинал: контракт награды v2 считает
-    ``em_alias`` максимумом по вариантам ответа, и без него у NQ занижен EM
-    (11.97% против 9.25% на одних и тех же предсказаниях). ``contract: v1``
-    в конфиге возвращает прежнее поведение бит в бит — им сняты старые раны.
+    The script is our fork, not the original ``answer_judge_llms.py``: reward
+    contract v2 computes ``em_alias`` as the maximum over answer variants, and
+    without it NQ EM is understated (11.97% vs 9.25% on the same predictions).
+    ``contract: v1`` in the config restores the original behaviour bit for
+    bit; older runs were produced with it.
     """
     judge = dict(config.get("judge") or {})
     judge.setdefault("script", str(runlib.pipeline_script("answer_judge.py")))
@@ -388,12 +386,13 @@ def shard_argv(judge: dict[str, Any], shard_input: Path, shard_output: Path) -> 
         "--max-tokens", str(judge["max_tokens"]),
         "--judge-max-tokens", str(judge["judge_max_tokens"]),
     ]
-    # Оригинал этих флагов не знает: конфиг с contract: v1 и явным script
-    # оставляет прежнюю командную строку, чтобы старые раны воспроизводились.
+    # The original script does not know these flags: a config with
+    # contract: v1 and an explicit script keeps the old command line, so older
+    # runs stay reproducible.
     if Path(judge["script"]).name == "answer_judge.py":
         argv += ["--contract", str(judge["contract"])]
-        # Варианты ответа берутся из таблицы датасета, а не из retrieval.jsonl:
-        # стадия ретривала алиасы роняет.
+        # Answer variants come from the dataset table, not from
+        # retrieval.jsonl: the retrieval stage drops aliases.
         if judge["contract"] == "v2" and judge.get("dataset"):
             argv += ["--dataset", str(judge["dataset"])]
         if judge.get("judge_all"):
@@ -402,15 +401,15 @@ def shard_argv(judge: dict[str, Any], shard_input: Path, shard_output: Path) -> 
 
 
 def check_vllm(base_url: str) -> None:
-    """Ранняя проверка, что vLLM поднят: иначе 32 процесса упадут поодиночке."""
+    """Fail early if vLLM is down; otherwise 32 processes fail one by one."""
     url = base_url.rstrip("/") + "/models"
     try:
         with urllib.request.urlopen(url, timeout=5) as response:
             response.read(1)
     except (urllib.error.URLError, OSError) as error:
         raise StageFailed(
-            f"vLLM не отвечает на {url}: {error}. "
-            "Разверните сервер по docs/pipeline.md §5"
+            f"vLLM is not responding at {url}: {error}. "
+            "Start the server first (see README.md)"
         ) from error
 
 
@@ -418,7 +417,7 @@ def stage_judge(config: dict[str, Any], run: Path) -> dict[str, Any]:
     judge = judge_settings(config)
     retrieval = run / runlib.RETRIEVAL_FILE
     if not retrieval.exists():
-        raise StageFailed(f"Нет {retrieval}: сначала стадия retrieve")
+        raise StageFailed(f"Missing {retrieval}: run the retrieve stage first")
     check_vllm(str(judge["base_url"]))
 
     records = jsonl_lines(retrieval)
@@ -429,8 +428,8 @@ def stage_judge(config: dict[str, Any], run: Path) -> dict[str, Any]:
         shutil.rmtree(parts_dir)
     parts_dir.mkdir(parents=True)
 
-    # Разбиение непрерывными кусками: порядок id внутри и между шардами
-    # сохраняется, поэтому склейка возвращает исходную последовательность.
+    # Contiguous chunks: id order within and across shards is preserved, so
+    # merging restores the original sequence.
     per_shard = -(-len(records) // shards)
     shard_files = []
     for number in range(shards):
@@ -441,7 +440,7 @@ def stage_judge(config: dict[str, Any], run: Path) -> dict[str, Any]:
         shard_input.write_text("\n".join(chunk) + "\n", encoding="utf-8")
         shard_files.append((shard_input, parts_dir / f"input-{number:02d}.json"))
 
-    LOG.info("judge: %d записей, %d шардов", len(records), len(shard_files))
+    LOG.info("judge: %d records, %d shards", len(records), len(shard_files))
     started = time.monotonic()
     environment = child_environment(drop=("VLLM_API_KEY",))
     log_path = run / runlib.LOG_FILE
@@ -468,8 +467,8 @@ def stage_judge(config: dict[str, Any], run: Path) -> dict[str, Any]:
         ]
     if failures:
         raise StageFailed(
-            f"{len(failures)} из {len(processes)} шардов judge упали, "
-            f"см. {log_path}"
+            f"{len(failures)} of {len(processes)} judge shards failed, "
+            f"see {log_path}"
         )
 
     merged: list[dict[str, Any]] = []
@@ -480,13 +479,13 @@ def stage_judge(config: dict[str, Any], run: Path) -> dict[str, Any]:
     with destination.open("w", encoding="utf-8") as stream:
         json.dump(merged, stream, ensure_ascii=False)
 
-    # Порядок и состав должны совпадать с retrieval JSONL — иначе метрики
-    # считаются не по тем вопросам.
+    # Order and membership must match the retrieval JSONL; otherwise metrics
+    # are computed over the wrong questions.
     expected = [json.loads(line)["id"] for line in records]
     actual = [record["id"] for record in merged]
     if expected != actual:
         raise StageFailed(
-            "Порядок id после склейки шардов не совпадает с retrieval.jsonl"
+            "id order after merging shards does not match retrieval.jsonl"
         )
     shutil.rmtree(parts_dir)
     return {
@@ -505,14 +504,14 @@ def stage_judge(config: dict[str, Any], run: Path) -> dict[str, Any]:
 def stage_score(config: dict[str, Any], run: Path) -> dict[str, Any]:
     judge_file = run / runlib.JUDGE_FILE
     if not judge_file.exists():
-        raise StageFailed(f"Нет {judge_file}: сначала стадия judge")
+        raise StageFailed(f"Missing {judge_file}: run the judge stage first")
     started = time.monotonic()
     dataset = runlib.dataset_key(config)
     metrics = runlib.score_judge_file(judge_file, dataset=dataset)
     runlib.write_metrics(run, metrics)
-    # Форматируется через помощник, а не через %.4f: у датасета без
-    # gold-титулов title_em равен None, и «%.4f» на нём падает уже после того,
-    # как метрики записаны, — то есть ран выглядел бы упавшим, будучи целым.
+    # Formatted via a helper rather than %.4f: for a dataset without gold
+    # titles title_em is None, and "%.4f" would fail after the metrics are
+    # written, making an intact run look failed.
     optional = lambda value: "—" if value is None else f"{value:.4f}"  # noqa: E731
     LOG.info(
         "%s: EM=%.4f F1=%.4f judge=%.4f title_em=%s%s",
@@ -534,7 +533,7 @@ def stage_score(config: dict[str, Any], run: Path) -> dict[str, Any]:
 
 
 # --------------------------------------------------------------------------
-# подкоманды
+# subcommands
 
 
 def write_cmd_script(config: dict[str, Any], run: Path) -> None:
@@ -545,16 +544,16 @@ def write_cmd_script(config: dict[str, Any], run: Path) -> None:
         prefix = f"CUDA_VISIBLE_DEVICES={retrieve['cuda_visible_devices']} "
     lines = [
         "#!/usr/bin/env bash",
-        f"# Ран {run.name}, собран exp.py из configs/{config['config_file']}.",
-        "# Файл пишется до запуска, поэтому ран воспроизводим даже если",
-        "# процесс был убит.",
+        f"# Run {run.name}, generated by exp.py from configs/{config['config_file']}.",
+        "# Written before any stage starts, so the run stays reproducible even if",
+        "# the process is killed.",
         "set -euo pipefail",
         f"cd {runlib.REPO}",
         "",
         prefix + "HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \\",
         "  " + " ".join(retrieve_argv(config, run)),
         "",
-        f"# judge: {judge['shards']} шардов answer_judge_llms.py, затем склейка",
+        f"# judge: {judge['shards']} shards of answer_judge_llms.py, then merged",
         "# " + " ".join(shard_argv(judge, Path("<shard>.jsonl"), Path("<shard>.json"))),
         "",
         f"python exp.py run --config configs/{config['config_file']} --only score",
@@ -572,10 +571,10 @@ def command_run(args: argparse.Namespace) -> int:
 
     if args.dry_run:
         print(f"run_id: {run_id}")
-        print(f"каталог: {run.relative_to(runlib.REPO)}")
-        print(f"гипотеза: {config['hypothesis']}")
+        print(f"directory: {run.relative_to(runlib.REPO)}")
+        print(f"hypothesis: {config['hypothesis']}")
         for stage in stages:
-            print(f"\n— стадия {stage}")
+            print(f"\n— stage {stage}")
             if stage == "retrieve":
                 environment = config["retrieve"].get("cuda_visible_devices")
                 if environment is not None:
@@ -583,7 +582,7 @@ def command_run(args: argparse.Namespace) -> int:
                 print("  " + " ".join(retrieve_argv(config, run)))
             elif stage == "judge":
                 judge = judge_settings(config)
-                print(f"  {judge['shards']} × answer_judge_llms.py (VLLM_API_KEY снимается)")
+                print(f"  {judge['shards']} × answer_judge_llms.py (VLLM_API_KEY unset)")
                 print("  " + " ".join(shard_argv(judge, Path("<shard>.jsonl"), Path("<shard>.json"))))
             else:
                 print("  runlib.score_judge_file → metrics.json")
@@ -591,8 +590,8 @@ def command_run(args: argparse.Namespace) -> int:
 
     if run.exists() and not args.resume:
         raise SystemExit(
-            f"Каталог {run} уже существует. Задайте --tag, --run-id или "
-            "--resume, чтобы не потерять прежний результат."
+            f"Directory {run} already exists. Pass --tag, --run-id or "
+            "--resume so the previous result is not lost."
         )
     run.mkdir(parents=True, exist_ok=True)
 
@@ -608,17 +607,17 @@ def command_run(args: argparse.Namespace) -> int:
 
     if manifest["code"]["git_dirty"]:
         LOG.warning(
-            "В репозитории есть незакоммиченные правки: %s. "
-            "Ран будет помечен git_dirty.",
+            "The repository has uncommitted changes: %s. "
+            "The run will be marked git_dirty.",
             ", ".join(manifest["code"]["git_dirty_files"][:5]),
         )
 
     done = {stage["name"] for stage in manifest["stages"] if stage.get("exit_code") == 0}
     for stage in stages:
         if args.resume and stage in done:
-            LOG.info("Пропускаю стадию %s: уже выполнена", stage)
+            LOG.info("Skipping stage %s: already done", stage)
             continue
-        LOG.info("Стадия %s", stage)
+        LOG.info("Stage %s", stage)
         try:
             if stage == "retrieve":
                 result = stage_retrieve(config, run)
@@ -634,7 +633,7 @@ def command_run(args: argparse.Namespace) -> int:
                 {"name": stage, "exit_code": 1, "error": str(error)}
             )
             runlib.write_manifest(run, manifest)
-            LOG.error("Стадия %s не удалась: %s", stage, error)
+            LOG.error("Stage %s failed: %s", stage, error)
             return 1
         manifest["stages"] = [
             existing for existing in manifest["stages"] if existing["name"] != stage
@@ -644,8 +643,8 @@ def command_run(args: argparse.Namespace) -> int:
     manifest["status"] = "ok"
     manifest["finished_utc"] = utc_now()
     runlib.write_manifest(run, manifest)
-    LOG.info("Готово: %s", run.relative_to(runlib.REPO))
-    LOG.info("Не забудьте про запись в EXPERIMENTS.md и `make report`")
+    LOG.info("Done: %s", run.relative_to(runlib.REPO))
+    LOG.info("Remember to run `make report`")
     return 0
 
 
@@ -659,8 +658,8 @@ def collect_inputs(config: dict[str, Any]) -> dict[str, Any]:
         dataset = Path(retrieve["input"])
         if dataset.exists():
             inputs["dataset"] = runlib.file_identity(dataset)
-        # Для обученных чекпоинтов линия строки таблицы определяется весами:
-        # без их идентичности ран невоспроизводим.
+        # For a trained checkpoint the weights define what the table row
+        # measures: without their identity the run is not reproducible.
         if retrieve.get("checkpoint"):
             checkpoint = Path(retrieve["checkpoint"])
             if checkpoint.exists():
@@ -671,8 +670,8 @@ def collect_inputs(config: dict[str, Any]) -> dict[str, Any]:
         if source_manifest.exists():
             inputs["source_inputs"] = runlib.read_json(source_manifest).get("inputs")
         if retrieve["kind"] == "pool":
-            # Корпус и его смещения нужны, чтобы резолвить row ID пула в
-            # тексты; идентичность берётся из манифеста индекса, как у qrag.
+            # The corpus and its offsets are needed to resolve pool row IDs
+            # into texts; the identity comes from the index manifest, as for qrag.
             inputs.update(runlib.index_identity(Path(retrieve["index_dir"])))
         for key in ("oracle_source", "gold_source"):
             if retrieve.get(key):
@@ -688,24 +687,24 @@ def command_show(args: argparse.Namespace) -> int:
     metrics = runlib.read_metrics(run) or {}
     config = manifest.get("config", {})
     print(f"{manifest['run_id']}  [{manifest['status']}]")
-    print(f"метка:     {config.get('label')}")
-    print(f"гипотеза:  {manifest.get('hypothesis')}")
-    print(f"начат:     {manifest.get('created_utc')}")
-    print(f"закончен:  {manifest.get('finished_utc')}")
-    print(f"коммит:    {manifest['code'].get('git_commit')}"
+    print(f"label:      {config.get('label')}")
+    print(f"hypothesis: {manifest.get('hypothesis')}")
+    print(f"started:    {manifest.get('created_utc')}")
+    print(f"finished:   {manifest.get('finished_utc')}")
+    print(f"commit:     {manifest['code'].get('git_commit')}"
           f"{' (dirty)' if manifest['code'].get('git_dirty') else ''}")
     if manifest.get("backfilled"):
-        print("восстановлен из документации: параметры не записаны в момент запуска")
-    print("\nстадии:")
+        print("backfilled: parameters were reconstructed, not recorded at launch")
+    print("\nstages:")
     for stage in manifest.get("stages", []):
         seconds = stage.get("seconds")
         print(
-            f"  {stage['name']:9s} код={stage.get('exit_code')} "
-            f"{'' if seconds is None else f'{seconds:.0f} c '}"
+            f"  {stage['name']:9s} code={stage.get('exit_code')} "
+            f"{'' if seconds is None else f'{seconds:.0f} s '}"
             f"{stage.get('output', '')}"
         )
     if metrics:
-        print("\nметрики:")
+        print("\nmetrics:")
         for key in ("em", "f1", "judge", "title_recall", "title_em", "samples"):
             value = metrics.get(key)
             if isinstance(value, float):
@@ -714,7 +713,7 @@ def command_show(args: argparse.Namespace) -> int:
                 print(f"  {key:14s} {value}")
     retrieve = config.get("retrieve", {})
     print(
-        f"\nретривал:  {retrieve.get('kind')}, "
+        f"\nretrieval:  {retrieve.get('kind')}, "
         f"steps={retrieve.get('steps', '—')}, "
         f"reranker={retrieve.get('reranker') or retrieve.get('context') or '—'}"
     )
@@ -743,11 +742,11 @@ def command_index(args: argparse.Namespace) -> int:
 def command_archive(args: argparse.Namespace) -> int:
     run = runlib.run_dir(args.run_id)
     if not run.exists():
-        raise SystemExit(f"Нет такого рана: {run}")
+        raise SystemExit(f"No such run: {run}")
     runlib.ARCHIVE.mkdir(parents=True, exist_ok=True)
     destination = runlib.ARCHIVE / run.name
     if destination.exists():
-        raise SystemExit(f"В архиве уже есть {destination}")
+        raise SystemExit(f"Archive already contains {destination}")
     manifest_path = run / runlib.MANIFEST_FILE
     if manifest_path.exists():
         manifest = runlib.read_manifest(run)
@@ -755,13 +754,13 @@ def command_archive(args: argparse.Namespace) -> int:
         manifest["archive_reason"] = args.reason
         runlib.write_manifest(run, manifest)
     shutil.move(str(run), str(destination))
-    # runs/INDEX.md обещает, что причина архивации каждого рана записана в
-    # README архива — дописываем её туда, а не только в манифест.
+    # runs/INDEX.md promises that each run's archive reason is recorded in the
+    # archive README, so it is appended there, not only to the manifest.
     readme = runlib.ARCHIVE / "README.md"
     entry = f"## `{run.name}`\n\n{args.reason}\n\n"
     with readme.open("a", encoding="utf-8") as stream:
         stream.write(entry)
-    LOG.info("Ран перенесён в %s: %s", destination.relative_to(runlib.REPO), args.reason)
+    LOG.info("Run moved to %s: %s", destination.relative_to(runlib.REPO), args.reason)
     return 0
 
 
@@ -772,33 +771,33 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    run_parser = subparsers.add_parser("run", help="выполнить эксперимент")
+    run_parser = subparsers.add_parser("run", help="run an experiment")
     run_parser.add_argument("--config", type=Path, required=True)
-    run_parser.add_argument("--run-id", default=None, help="переопределить run_id")
-    run_parser.add_argument("--tag", default=None, help="суффикс к слагу run_id")
+    run_parser.add_argument("--run-id", default=None, help="override run_id")
+    run_parser.add_argument("--tag", default=None, help="suffix appended to the run_id slug")
     run_parser.add_argument(
-        "--only", action="append", choices=STAGES, help="выполнить только эти стадии"
+        "--only", action="append", choices=STAGES, help="run only these stages"
     )
     run_parser.add_argument("--dry-run", action="store_true")
     run_parser.add_argument(
-        "--resume", action="store_true", help="продолжить существующий ран"
+        "--resume", action="store_true", help="continue an existing run"
     )
     run_parser.add_argument(
-        "--max-samples", type=int, default=None, help="ограничить выборку (smoke)"
+        "--max-samples", type=int, default=None, help="limit the number of samples (smoke)"
     )
     run_parser.set_defaults(handler=command_run)
 
-    show_parser = subparsers.add_parser("show", help="сводка рана")
+    show_parser = subparsers.add_parser("show", help="run summary")
     show_parser.add_argument("run_id")
     show_parser.set_defaults(handler=command_show)
 
-    list_parser = subparsers.add_parser("list", help="все раны")
+    list_parser = subparsers.add_parser("list", help="all runs")
     list_parser.set_defaults(handler=command_list)
 
-    index_parser = subparsers.add_parser("index", help="пересобрать INDEX.md и RESULTS.md")
+    index_parser = subparsers.add_parser("index", help="rebuild INDEX.md and RESULTS.md")
     index_parser.set_defaults(handler=command_index)
 
-    archive_parser = subparsers.add_parser("archive", help="убрать ран в архив")
+    archive_parser = subparsers.add_parser("archive", help="move a run to the archive")
     archive_parser.add_argument("run_id")
     archive_parser.add_argument("--reason", required=True)
     archive_parser.set_defaults(handler=command_archive)
@@ -819,8 +818,8 @@ if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except KeyboardInterrupt:
-        LOG.error("Прервано")
+        LOG.error("Interrupted")
         raise SystemExit(130)
     except Exception as error:
-        LOG.error("Не удалось: %s", error)
+        LOG.error("Failed: %s", error)
         raise

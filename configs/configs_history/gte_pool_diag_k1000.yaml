@@ -1,25 +1,27 @@
-# То же, что gte_pool_diag_k500.yaml, но пул top-1000. Смысл пары — не одно
-# число, а форма кривой: если между 500 и 1000 прирост title EM@pool уже
-# плоский, дальше расширять пул бесполезно и узкое место не в его размере.
+# Same as gte_pool_diag_k500.yaml, but with a top-1000 pool. The point of the
+# pair is the shape of the curve rather than a single number: if title EM@pool
+# is already flat between 500 and 1000, widening the pool further is useless
+# and the bottleneck is not pool size.
 #
-# steps: 1 по той же причине, что и у k500: в режиме fixed пул один на все
-# шаги, а report читает только первый хоп. Стадии judge и score не нужны,
-# запускать как `--only retrieve`.
-label: GTE пул top-1000 (диагностика)
+# steps: 1 for the same reason as in k500: in fixed mode one pool is shared by
+# all steps, and report reads only the first hop. The judge and score stages
+# are not needed; run with `--only retrieve`.
+label: GTE pool top-1000 (diagnostics)
 slug: gte-pool-diag-k1000
 
 order: 902
 hypothesis: >-
-  Расширение пула до 1000 кандидатов показывает, насыщается ли title EM@pool:
-  плоский участок между 500 и 1000 означает, что размер пула — не тот рычаг.
+  Widening the pool to 1000 candidates shows whether title EM@pool saturates:
+  a flat segment between 500 and 1000 means that pool size is not the right
+  lever.
 
 retrieve:
   kind: qrag
-  index_dir: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-qrag-jul21-best-raw
-  candidate_index_dir: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte
+  index_dir: /path/to/data/full-wiki/wiki18-qrag-jul21-best-raw
+  candidate_index_dir: /path/to/data/full-wiki/wiki18-gte
   candidate_backend: torch-cuda
-  qrag_repo: /home/a.anokhin/Judge/Q-RAG-feedback
-  input: /home/a.anokhin/Judge/datasets/data_sources/hotpotqa/hotpot_dev_fullwiki_v1.json
+  qrag_repo: /path/to/Q-RAG-feedback
+  input: /path/to/data/hotpotqa/hotpot_dev_fullwiki_v1.json
   cuda_visible_devices: "6"
   device: cuda:0
   model_dtype: float32
@@ -38,7 +40,8 @@ retrieve:
   auto_prepare: false
 
 judge:
-  script: /home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py
+  script: src/answer_judge.py
+  contract: v1
   base_url: http://127.0.0.1:8010/v1
   answer_model: Qwen3-4B
   max_tokens: 1000

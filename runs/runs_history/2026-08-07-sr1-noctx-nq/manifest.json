@@ -27,13 +27,13 @@
   "config": {
     "config_file": "sr1_nq_noctx.yaml",
     "dataset": "sr1_nq",
-    "hypothesis": "Сколько Qwen3-4B отвечает на NQ без контекста вообще — нижняя граница, относительно которой читаются обе поисковые строки.",
+    "hypothesis": "How well Qwen3-4B answers NQ with no context at all: the lower bound against which both search rows are read.",
     "judge": {
       "answer_model": "Qwen3-4B",
       "base_url": "http://127.0.0.1:8010/v1",
       "judge_max_tokens": 100,
       "max_tokens": 1000,
-      "script": "/home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py",
+      "script": "/path/to/Q-RAG-feedback/answer_judge_llms.py",
       "shards": 32
     },
     "label": "no retrieval",
@@ -48,7 +48,7 @@
   "created_utc": "2026-08-07T18:16:26.801484+00:00",
   "env": {
     "cuda_visible_devices": null,
-    "executable": "/home/a.anokhin/venvs/gpu/bin/python",
+    "executable": "/path/to/venv/bin/python",
     "faiss": null,
     "gpu": [
       "0, NVIDIA H200, 143771 MiB",
@@ -67,12 +67,12 @@
     "transformers": "4.57.6"
   },
   "finished_utc": "2026-08-07T18:17:02.386052+00:00",
-  "hypothesis": "Сколько Qwen3-4B отвечает на NQ без контекста вообще — нижняя граница, относительно которой читаются обе поисковые строки.",
+  "hypothesis": "How well Qwen3-4B answers NQ with no context at all: the lower bound against which both search rows are read.",
   "inputs": {
     "source_inputs": {
       "action_artifact": null,
       "checkpoint": {
-        "path": "/home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki/runs/Aug03_12-44-38_lineA_main/model_best.pt",
+        "path": "/path/to/repo/Q-RAG_for_full-wiki/runs/Aug03_12-44-38_lineA_main/model_best.pt",
         "sha256": "c8b2212d4b1e04449623a35acabe2ea8abc06d09acc22b6a87e29a2ea5c9db36",
         "size_bytes": 7333936023
       },
@@ -83,12 +83,12 @@
         "rows": 21015324,
         "sha256": "43d7d3f58d01d711d95b00b70584211eea639fa46802905a4b7e11cf0617752d",
         "size_bytes": 14393573105,
-        "source_path": "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/data00/jiajie_jin/flashrag_indexes/wiki_dpr_100w/wiki_dump.jsonl",
+        "source_path": "/path/to/data/full-wiki/data00/jiajie_jin/flashrag_indexes/wiki_dpr_100w/wiki_dump.jsonl",
         "tar_member": null,
         "validate_id_matches_row": true
       },
       "dataset": {
-        "path": "/home/a.anokhin/Judge/full-wiki/runs/shared/searchr1/nq.jsonl",
+        "path": "/path/to/repo/runs/shared/searchr1/nq.jsonl",
         "sha256": "655f62f00b64f0ec49d734a5f60c146aaf1968f420e9f2c7c6701e5cca4e903a",
         "size_bytes": 620191
       },
@@ -98,7 +98,7 @@
         "model": "Alibaba-NLP/gte-multilingual-base",
         "resolved_revision": "9bbca17d9273fd0d03d5725c7a4b0f6b45142062"
       },
-      "index_dir": "/home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte"
+      "index_dir": "/path/to/data/full-wiki/wiki18-gte"
     },
     "source_run": "2026-08-07-sr1-best-nq"
   },
@@ -126,14 +126,14 @@
   "stages": [
     {
       "argv": [
-        "/home/a.anokhin/venvs/gpu/bin/python",
+        "/path/to/venv/bin/python",
         "build_eval_variants.py",
         "--context",
         "none",
         "--input",
-        "/home/a.anokhin/Judge/full-wiki/runs/2026-08-07-sr1-best-nq/retrieval.jsonl",
+        "/path/to/repo/runs/2026-08-07-sr1-best-nq/retrieval.jsonl",
         "--output",
-        "/home/a.anokhin/Judge/full-wiki/runs/2026-08-07-sr1-noctx-nq/retrieval.jsonl"
+        "/path/to/repo/runs/2026-08-07-sr1-noctx-nq/retrieval.jsonl"
       ],
       "env": {
         "HF_HUB_OFFLINE": "1",
@@ -149,8 +149,8 @@
     },
     {
       "argv": [
-        "/home/a.anokhin/venvs/gpu/bin/python",
-        "/home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py",
+        "/path/to/venv/bin/python",
+        "/path/to/Q-RAG-feedback/answer_judge_llms.py",
         "--retriever-logfile",
         "<shard>.jsonl",
         "--output-file",

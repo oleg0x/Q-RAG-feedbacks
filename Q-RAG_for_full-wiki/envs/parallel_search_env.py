@@ -1,17 +1,17 @@
-"""Батчевый rollout сред прямого поиска.
+"""Batched rollout of direct-search environments.
 
-Прежний ``ParallelTextEnv`` батчит только выбор действия, а сами среды шагает
-обычным циклом. Для реранкера это неважно: кандидаты приходят из датасета.
-Для прямого поиска каждый шаг среды — это чтение 60 ГиБ из HBM, и замер
-говорит однозначно: один запрос стоит 15.9 мс, шестнадцать — 35 мс. Поэтому
-здесь порядок другой:
+The original ``ParallelTextEnv`` batches only action selection and steps the
+environments in a plain loop. That is fine for a reranker, whose candidates
+come from the dataset. For direct search every environment step reads 60 GiB
+from HBM, and the measurement is unambiguous: one query costs 15.9 ms, sixteen
+cost 35 ms. Hence a different order here:
 
-    состояния всех сред → одно кодирование (онлайн, target и GTE) →
-    один батчевый поиск на башню → раздача переходов
+    states of all envs → one encoding pass (online, target and GTE) →
+    one batched search per tower → transitions handed out
 
-Ридер и судья остаются блокирующими HTTP-вызовами, их конкурентность
-обеспечивает пул потоков: среды независимы, а ждать их последовательно значит
-сложить задержки шестнадцати вызовов.
+The reader and judge remain blocking HTTP calls made concurrent by a thread
+pool: environments are independent, and waiting on them sequentially would add
+up the latencies of sixteen calls.
 """
 
 from __future__ import annotations
@@ -35,11 +35,11 @@ SearchTrainBatch = namedtuple("SearchTrainBatch", [
 
 
 def make_state_memories(texts: Sequence[str], pool_size: int = 1) -> list[TextMemory]:
-    """Состояния в форме, которую понимает ``stack_memory``.
+    """States in the form ``stack_memory`` expects.
 
-    ``available_mask`` здесь фиктивная: множество действий у прямого поиска
-    задаётся не состоянием, а результатом поиска, но ``stack_memory``
-    паддит это поле и на пустой последовательности падает.
+    ``available_mask`` is a dummy here: in direct search the action set is
+    defined by the search result, not by the state, but ``stack_memory`` pads
+    this field and fails on an empty sequence.
     """
     return [
         TextMemory(
@@ -55,7 +55,7 @@ def make_state_memories(texts: Sequence[str], pool_size: int = 1) -> list[TextMe
 
 
 class ParallelSearchEnv:
-    """Батчевый сбор переходов из сред прямого поиска."""
+    """Batched transition collection from direct-search environments."""
 
     def __init__(
         self,
@@ -87,7 +87,7 @@ class ParallelSearchEnv:
         self.monitor = _Monitor()
 
     def reset_monitor(self) -> None:
-        """Начать новое окно статистики — вызывается после записи в лог."""
+        """Start a new statistics window; called after logging."""
         self.monitor = _Monitor()
 
     def close(self) -> None:
@@ -98,11 +98,11 @@ class ParallelSearchEnv:
         return [env.reset() for env in self.envs]
 
     def _encode(self, texts: Sequence[str], towers: Sequence[Any]) -> list[Tensor]:
-        """Одно кодирование текста состояния всеми башнями сразу.
+        """Encode the state text with all towers in one pass.
 
-        Токенизация общая: state-башня, её target-копия и замороженная
-        action-башня — это один и тот же GTE с одним и тем же токенайзером,
-        и разбирать текст трижды незачем.
+        Tokenization is shared: the state tower, its target copy and the frozen
+        action tower are the same GTE with the same tokenizer, so there is no
+        point in tokenizing the text three times.
         """
         batch = stack_memory(
             make_state_memories(texts),
@@ -117,15 +117,15 @@ class ParallelSearchEnv:
                 attention_mask=batch.attention_mask,
             )
             if isinstance(embeds, dict):
-                # EmbedderNone возвращает {"rope": embeds} и поворот не применяет:
-                # действия линии A — сырые строки M, а не повёрнутые векторы.
+                # EmbedderNone returns {"rope": embeds} without the rotation:
+                # line A actions are raw rows of M, not rotated vectors.
                 embeds = embeds["rope"]
             outputs.append(embeds)
         return [batch, *outputs]
 
     @staticmethod
     def _gte_tower(agent):
-        """Замороженная action-башня как энкодер запроса для ε-инъекции."""
+        """The frozen action tower as the query encoder for ε-injection."""
         embedder = agent.critic.action_embed
 
         def encode(input_ids, attention_mask):
@@ -149,7 +149,7 @@ class ParallelSearchEnv:
         title_ids: Sequence[int],
         envs: Sequence[DenseSearchEnv] | None = None,
     ):
-        """Прочитать выбранные чанки и получить награду конкурентно."""
+        """Read the selected chunks and fetch rewards concurrently."""
 
         def work(env: DenseSearchEnv, row_id: int, title_id: int):
             text = str(self.corpus.read_row(int(row_id))["contents"])
@@ -165,11 +165,11 @@ class ParallelSearchEnv:
 
     @torch.no_grad()
     def run_episodes(self, agent, samples: Sequence[dict]) -> list[dict[str, Any]]:
-        """Прогон фиксированного набора примеров детерминированной политикой.
+        """Run a fixed set of examples with the deterministic policy.
 
-        Ни target-поиска, ни GTE-сотни здесь нет: V(s') на eval не нужен, а
-        инъекции при `evaluate=True` не бывает — каждый лишний поиск это
-        ещё одно чтение всей матрицы.
+        There is no target search and no GTE top-K pool here: V(s') is not
+        needed at eval and `evaluate=True` never injects, while every extra
+        search is another read of the whole matrix.
         """
         results: list[dict[str, Any]] = []
         with agent.online_models_mode(training=False):
@@ -180,8 +180,9 @@ class ParallelSearchEnv:
                     env.reset(sample)
                 rewards = [0.0] * len(block)
                 done = [False] * len(block)
-                # Ошибка vLLM на eval не роняет ран, но и не должна тихо
-                # занижать кривую нулём: такие эпизоды считаются отдельно.
+                # A vLLM error at eval does not crash the run, but must not
+                # silently pull the curve down with zeros: such episodes are
+                # counted separately.
                 valid = [True] * len(block)
                 while not all(done):
                     running = [i for i, finished in enumerate(done) if not finished]
@@ -248,10 +249,10 @@ class ParallelSearchEnv:
         values: list[list[float]] = [[] for _ in range(num_envs)]
         episode_start = [0] * num_envs
         episode_returns: list[float] = []
-        # Монитор живёт между вызовами rollout: один вызов собирает 1–2 шага
-        # каждой среды, эпизоды завершаются не в каждом вызове, и статистика
-        # эпизодного уровня на точке eval была бы систематически пустой.
-        # Сбрасывает его train-цикл после записи в лог (reset_monitor).
+        # The monitor persists across rollout calls: one call collects 1–2
+        # steps per env, episodes do not finish in every call, and
+        # episode-level stats at an eval point would be systematically empty.
+        # The training loop resets it after logging (reset_monitor).
         monitor = self.monitor
 
         collected = 0
@@ -267,9 +268,10 @@ class ParallelSearchEnv:
             )
             blocked_rows, blocked_titles = self._masks()
 
-            # Три поиска по одним и тем же маскам: пул действий, оценка V(s')
-            # и GTE-сотня текущего состояния. Батч из шестнадцати запросов
-            # стоит вдвое дороже одного, поэтому дробить их нельзя.
+            # Three searches with the same masks: the action pool, the V(s')
+            # estimate and the GTE top-K of the current state. A batch of
+            # sixteen queries costs only twice as much as one, so they must not
+            # be split.
             pool = self.index.search(
                 s_online, self.top_k, blocked_rows, blocked_titles
             )
@@ -280,9 +282,9 @@ class ParallelSearchEnv:
                 s_gte, self.top_k, blocked_rows, blocked_titles, with_vectors=False
             )
 
-            # V(s) считается по своему, target-пулу: target оценивает то, что
-            # сам бы и достал. Пул уже отфильтрован маской, поэтому маска
-            # доступности здесь единичная, а top_k_actions равен размеру пула.
+            # V(s) is computed over the target's own pool: the target values
+            # what it would retrieve itself. The pool is already masked, so
+            # the availability mask is all ones and top_k_actions is the pool size.
             dim = s_target.shape[-1] // 2
             target_logits_1 = (
                 s_target[:, None, :dim] * target_pool.vectors[..., :dim]
@@ -291,9 +293,9 @@ class ParallelSearchEnv:
                 s_target[:, None, dim:] * target_pool.vectors[..., dim:]
             ).sum(-1)
             if getattr(agent.critic, "calibrated", False):
-                # Головы фитятся к таргету калиброванными, значит и V(s')
-                # обязан считаться по калиброванным значениям — target-копией
-                # w,b, тем же масштабом, которым жил target-критик.
+                # The heads are fitted to the target in calibrated form, so
+                # V(s') must use calibrated values too: the target copy of
+                # w,b, the same scale the target critic used.
                 state_values = calibrated_soft_value(
                     target_logits_1,
                     target_logits_2,
@@ -317,7 +319,7 @@ class ParallelSearchEnv:
                 values[env_id].append(float(state_values[env_id]))
 
             if collected >= batch_size:
-                # Хвостовое V(s_{t+1}) собрано — на этом rollout закончен.
+                # The bootstrap V(s_{t+1}) is collected; the rollout ends here.
                 break
 
             positions, injected = self.policy(
@@ -330,8 +332,8 @@ class ParallelSearchEnv:
                 gte_pool.row_ids.gather(1, positions[:, None]).squeeze(1),
                 pool.row_ids.gather(1, positions[:, None]).squeeze(1),
             )
-            # Вектор действия берётся по номеру строки, а не из пула: у
-            # инъецированного действия своего места в онлайн-пуле нет.
+            # The action vector is looked up by row id, not taken from the
+            # pool: an injected action has no slot in the online pool.
             action_vectors = self.index.rows(chosen_ids)
             title_ids = self.index.titles_of(chosen_ids)
 
@@ -362,9 +364,9 @@ class ParallelSearchEnv:
                 collected += 1
 
                 if not step.valid:
-                    # Награда приходит только на терминальном шаге, поэтому
-                    # её отсутствие отравляет λ-возвраты всего эпизода, а не
-                    # одного перехода: из лосса выпадает эпизод целиком.
+                    # Reward arrives only at the terminal step, so a missing
+                    # one poisons the λ-returns of the whole episode, not just
+                    # one transition: the entire episode is dropped from the loss.
                     for index in range(episode_start[env_id], len(valid[env_id])):
                         valid[env_id][index] = False
 
@@ -397,10 +399,10 @@ class ParallelSearchEnv:
 
 
 class _Monitor:
-    """Счётчики раздела «Риски» docs/training.md.
+    """Training-health counters.
 
-    Предохранителей у линии A нет, поэтому единственное, что отличает
-    «модель учится» от «башня уехала и пул распался», — эти числа.
+    Line A has no safeguards, so these numbers are the only way to tell "the
+    model is learning" from "the tower drifted and the pool collapsed".
     """
 
     def __init__(self) -> None:
@@ -428,16 +430,16 @@ class _Monitor:
 
     @staticmethod
     def _gold_title_recall(env, pool_titles: set[int]) -> float | None:
-        """Доля gold-титулов эпизода, попавших в пул.
+        """Share of the episode's gold titles that made it into the pool.
 
-        Считается и для своего пула, и для GTE-сотни того же состояния: без
-        второй цифры первая ничего не говорит — падение может означать и
-        распад пула, и просто трудный вопрос.
+        Computed both for the own pool and for the GTE top-K of the same state:
+        without the second number the first says nothing, since a drop can mean
+        either a collapsed pool or just a hard question.
 
-        ``None`` у примеров без gold-титулов, и такие в счётчик не идут: у
-        половины NQ сырой смеси их нет вовсе. То есть на смеси
-        ``pool/gold_title_recall`` — это recall по эпизодам HotpotQA, а не по
-        всей выборке; доля таких эпизодов видна в ``pool/gold_title_coverage``.
+        ``None`` for examples without gold titles, which are not counted: the
+        NQ half of the raw mix has none. So on the mix
+        ``pool/gold_title_recall`` is recall over HotpotQA episodes, not the
+        whole set; their share is shown in ``pool/gold_title_coverage``.
         """
         gold = env.sample.get("gold_title_ids")
         if not gold:
@@ -466,8 +468,8 @@ class _Monitor:
             torch.nn.functional.cosine_similarity(s_online, s_gte, dim=-1).sum()
         )
 
-        # Средний GTE-ранг выбранного действия: цензурирован сотней, поэтому
-        # рядом всегда идёт доля действий, попавших в GTE top-K вообще.
+        # Mean GTE rank of the chosen action: censored at top-K, so it is
+        # always logged together with the share of actions inside GTE top-K.
         in_gte = gte_pool.row_ids == chosen_ids[:, None]
         present = in_gte.any(dim=1)
         self.action_in_gte_pool += int(present.sum())
@@ -489,9 +491,9 @@ class _Monitor:
         self.episodes += 1
         self.selected_chunks += len(env.selected_rows)
         self.second_chunks += env.second_chunk_count()
-        # Награда — максимум EM по вариантам и вердикта судьи. Половины
-        # копятся раздельно: иначе рост кривой одинаково выглядит и когда
-        # ретривал стал лучше, и когда судья подобрел.
+        # Reward is the max of EM over answer aliases and the judge verdict.
+        # The two parts are accumulated separately: otherwise a rising curve
+        # looks the same whether retrieval improved or the judge got lenient.
         getter = getattr(env.feedback_model, "get_metrics", None)
         metrics = getter() if getter is not None else {}
         self.em += float(metrics.get("EM", 0.0))
@@ -530,9 +532,9 @@ class _Monitor:
             "pool/gold_title_recall_gte": (
                 self.gold_recall_gte / max(self.gold_recall_steps, 1)
             ),
-            # Доля шагов, по которым recall вообще считался: на сырой смеси
-            # это доля HotpotQA, и без неё две кривые выше читаются как
-            # утверждение обо всей выборке.
+            # Share of steps where recall was computed at all: on the raw mix
+            # this is the HotpotQA share, and without it the two curves above
+            # read as a statement about the whole set.
             "pool/gold_title_coverage": self.gold_recall_steps / steps,
             "reward/em": self.em / episodes,
             "reward/em_alias": self.em_alias / episodes,

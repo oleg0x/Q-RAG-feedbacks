@@ -1,28 +1,30 @@
-# Стартовая точка линии A на MuSiQue-Ans: стоковая GTE-башня без чекпоинта.
+# Starting point of line A on MuSiQue-Ans: the stock GTE tower with no
+# checkpoint.
 #
-# Вход — не сырой файл датасета, а результат build_musique_eval.py: у MuSiQue
-# вместо пары context/supporting_facts плоский список paragraphs, и без
-# конвертации пайплайн прошёл бы по нему молча, с пустыми gold-титулами и
-# title EM = 100% (см. docstring конвертера).
+# The input is the output of build_musique_eval.py, not the raw dataset file:
+# MuSiQue has a flat paragraphs list instead of context/supporting_facts, and
+# without conversion the pipeline would silently run with empty gold titles and
+# title EM = 100% (see the converter docstring).
 #
-# Потолок покрытия корпуса — 72.11%
-# (runs/shared/musique_ans_dev_title_coverage.json), между HotpotQA 81.67% и
-# 2Wiki 51.05%.
-label: Прямой поиск, zero-shot GTE, 6 шагов, N=2
+# The corpus coverage ceiling is 72.11%
+# (runs/shared/musique_ans_dev_title_coverage.json), between HotpotQA (81.67%)
+# and 2Wiki (51.05%).
+label: Direct search, zero-shot GTE, 6 steps, N=2
 slug: search-zeroshot-musique
 dataset: musique_ans_dev
 
 order: 47
 hypothesis: >-
-  Итеративный прямой поиск стоковой GTE-башней задаёт стартовую точку на
-  MuSiQue. Ожидание — ниже HotpotQA: у трети вопросов три и более переходов,
-  а вопросы MuSiQue собраны так, чтобы их нельзя было решить одним хопом.
+  Iterative direct search with the stock GTE tower sets the starting point on
+  MuSiQue. Expected: below HotpotQA, since a third of the questions need three
+  or more hops and MuSiQue questions are built so that they cannot be solved
+  in a single hop.
 
 retrieve:
   kind: search
-  index_dir: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte
-  qrag_repo: /home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki
-  input: /home/a.anokhin/Judge/full-wiki/runs/shared/musique_ans_dev_hotpot_schema.jsonl
+  index_dir: /path/to/data/full-wiki/wiki18-gte
+  qrag_repo: Q-RAG_for_full-wiki
+  input: runs/shared/musique_ans_dev_hotpot_schema.jsonl
   cuda_visible_devices: "6"
   device: cuda:0
   model_dtype: float32
@@ -34,7 +36,8 @@ retrieve:
   auto_prepare: false
 
 judge:
-  script: /home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py
+  script: src/answer_judge.py
+  contract: v1
   base_url: http://127.0.0.1:8010/v1
   answer_model: Qwen3-4B
   max_tokens: 1000

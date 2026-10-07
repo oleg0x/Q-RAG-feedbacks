@@ -1,31 +1,31 @@
 #!/usr/bin/env python3
-"""Сырая смесь NQ + HotpotQA для обучения: манифест, holdout и веса эпизодов.
+"""Raw NQ + HotpotQA mix for training: manifest, holdout and episode weights.
 
-Вход — `train.parquet` датасета `PeterJinGo/nq_hotpotqa_train` (тот же, на
-котором учится Search-R1), лежащий в `train_data/raw/`. Скрипт ничего не
-фильтрует и не дедуплицирует намеренно: ветка обучалась на полном наборе — том
-же, что у Search-R1, — чтобы разница с ним не объяснялась подготовкой данных.
-Он производит три артефакта.
+The input is `train.parquet` of the `PeterJinGo/nq_hotpotqa_train` dataset
+(the one Search-R1 trains on), stored in `train_data/raw/`. The script
+deliberately neither filters nor deduplicates: training uses the full set,
+the same as Search-R1, so that differences from it cannot be attributed to
+data preparation. It produces three artifacts.
 
-``manifest.json`` — число строк, разбивка и доли по ``data_source``, sha256
-обоих parquet-файлов. Нужен, чтобы «на чём училась эта ветка» отвечалось без
-пересчёта по 170 тыс. строк.
+``manifest.json``: row count, per-``data_source`` breakdown and shares, and
+the sha256 of both parquet files, so that "what was this trained on" can be
+answered without recounting 170k rows.
 
-``holdout.json`` — по ``--holdout-per-source`` примеров каждой половины
-смеси, фиксированный сид. Один и тот же во всех руках ветки: eval обязан
-покрывать ту же смесь, что и обучение, раздельными кривыми, а сравнивать руки
-между собой можно только на общем наборе.
+``holdout.json``: ``--holdout-per-source`` examples from each half of the
+mix, with a fixed seed. It is the same for all training arms: evaluation must
+cover the same mix as training, with separate curves, and arms can only be
+compared with each other on a shared set.
 
-``weights/a1.jsonl`` — вес каждого примера: 1 везде, 0 на holdout. Через этот
-файл среда и тянет эпизоды (``envs/search_env.py``), поэтому исключение
-holdout из обучения и будущие фильтрованные руки A2/A3 — это один механизм и
-один формат.
+``weights/a1.jsonl``: the weight of every example, 1 everywhere and 0 on the
+holdout. The environment draws episodes through this file
+(``envs/search_env.py``), so excluding the holdout from training and future
+filtered arms A2/A3 share one mechanism and one format.
 
-Ключ примера — ``"{data_source}:{id}"``, а не голый ``id``: обе половины
-смеси нумеруются с нуля, и все 79 168 идентификаторов NQ совпадают с чужими
-идентификаторами HotpotQA.
+The example key is ``"{data_source}:{id}"`` rather than the bare ``id``: both
+halves of the mix are numbered from zero, and all 79,168 NQ identifiers
+collide with HotpotQA identifiers.
 
-    python src/build_train_mix.py --check   # только пересчёт и сверка манифеста
+    python src/build_train_mix.py --check   # only recompute and check the manifest
     python src/build_train_mix.py
 """
 
@@ -46,11 +46,11 @@ import runlib
 
 LOG = logging.getLogger("build-train-mix")
 
-# train_data/ лежит в корне репозитория, а этот модуль — в src/.
+# train_data/ lives at the repository root, this module in src/.
 DEFAULT_ROOT = runlib.REPO / "train_data"
-# sha256 `test.parquet` семи бенчмарков Search-R1: строки в
-# `runs/shared/searchr1/` нарезаны именно из него, и расхождение означало бы,
-# что опубликованные семь строк сняты не с того файла.
+# sha256 of the seven-benchmark Search-R1 `test.parquet`: the inputs in
+# `runs/shared/searchr1/` are cut from it, and a mismatch would mean that the
+# seven published rows were computed from a different file.
 SEARCHR1_TEST_SHA256 = (
     "30aa887b6d47e06e8c0f6f5307c88fe4e13461ac25a20ec0a5433ad7a4fe25dc"
 )
@@ -78,13 +78,14 @@ def load_mix(path: Path) -> pd.DataFrame:
     ]
     if frame["key"].nunique() != len(frame):
         raise ValueError(
-            f"{path}: ключи примеров не уникальны — holdout и веса адресовать нечем"
+            f"{path}: example keys are not unique, so holdout and weights cannot "
+            "address them"
         )
     return frame
 
 
 def describe(frame: pd.DataFrame) -> dict[str, Any]:
-    """Разбивка смеси: сколько примеров и вариантов ответа у каждой половины."""
+    """Mix breakdown: number of examples and answer aliases in each half."""
     counts = frame["data_source"].value_counts()
     variants = frame["golden_answers"].apply(len)
     sources = {}
@@ -107,18 +108,18 @@ def describe(frame: pd.DataFrame) -> dict[str, Any]:
 
 
 def pick_holdout(frame: pd.DataFrame, per_source: int, seed: int) -> list[str]:
-    """По ``per_source`` ключей каждой половины смеси, фиксированный сид.
+    """``per_source`` keys from each half of the mix, with a fixed seed.
 
-    Выборка идёт по отсортированным ключам, а не по порядку строк parquet:
-    порядок в файле — это чужое решение, и привязываться к нему значит
-    получить другой holdout при пересохранении датасета.
+    Sampling runs over sorted keys rather than parquet row order: the file
+    order is an upstream choice, and depending on it would yield a different
+    holdout whenever the dataset is re-saved.
     """
     chosen: list[str] = []
     for source in sorted(frame["data_source"].unique()):
         keys = sorted(frame.loc[frame["data_source"] == source, "key"])
         if per_source > len(keys):
             raise ValueError(
-                f"{source}: просили {per_source} примеров, всего {len(keys)}"
+                f"{source}: requested {per_source} examples, only {len(keys)} exist"
             )
         rng = random.Random(f"{seed}:{source}")
         chosen.extend(sorted(rng.sample(keys, per_source)))
@@ -142,14 +143,14 @@ def build(root: Path, per_source: int, seed: int, check: bool) -> dict[str, Any]
     test_file = raw / "test.parquet"
     for path in (train_file, test_file):
         if not path.is_file():
-            raise SystemExit(f"Нет {path}: сначала скачайте датасет")
+            raise SystemExit(f"{path} is missing: download the dataset first")
 
     test_sha = sha256_file(test_file)
     if test_sha != SEARCHR1_TEST_SHA256:
         raise SystemExit(
-            f"{test_file}: sha256 {test_sha} против ожидаемого "
-            f"{SEARCHR1_TEST_SHA256}. Семь строк Search-R1 в runs/shared/ "
-            "сняты с другого файла — остановитесь и разберитесь."
+            f"{test_file}: sha256 {test_sha}, expected "
+            f"{SEARCHR1_TEST_SHA256}. The seven Search-R1 rows in runs/shared/ "
+            "were computed from a different file; stop and investigate."
         )
 
     frame = load_mix(train_file)
@@ -184,9 +185,9 @@ def build(root: Path, per_source: int, seed: int, check: bool) -> dict[str, Any]
             and stored["files"] == manifest["files"]
             and stored_holdout == holdout
         )
-        LOG.info("Сверка манифеста и holdout: %s", "совпали" if same else "РАЗОШЛИСЬ")
+        LOG.info("Manifest and holdout check: %s", "match" if same else "MISMATCH")
         if not same:
-            raise SystemExit("Артефакты разошлись с пересчётом")
+            raise SystemExit("Artifacts disagree with the recomputation")
         return manifest
 
     (root / "holdout.json").write_text(
@@ -211,7 +212,7 @@ def build(root: Path, per_source: int, seed: int, check: bool) -> dict[str, Any]
         encoding="utf-8",
     )
     LOG.info(
-        "Смесь: %d строк, holdout %d, тянется %d",
+        "Mix: %d rows, holdout %d, drawable %d",
         manifest["train"]["rows"],
         len(holdout),
         stats["drawable"],
@@ -227,7 +228,7 @@ def main() -> int:
     parser.add_argument(
         "--check",
         action="store_true",
-        help="только пересчитать и сверить с тем, что уже лежит",
+        help="only recompute and compare with the existing artifacts",
     )
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(message)s")

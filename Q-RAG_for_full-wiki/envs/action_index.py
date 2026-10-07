@@ -1,20 +1,21 @@
-"""Матрица действий ``M`` и батчевый поиск по ней с маской до ``topk``.
+"""Action matrix ``M`` and batched search over it with masking before ``topk``.
 
-``M`` — шарды ``wiki18-gte``, 21 015 324 × 768 fp32, 60.1 ГиБ резидентно на
-GPU. Action-башня заморожена и побитово равна стоковой GTE, поэтому отдельного
-action-индекса не нужно: вектор действия — это сырая строка ``M``, без
-RoPE-поворота. Из этого следует тождество, на котором держится вся линия A:
-скор поиска ``s @ M[i]`` и оценка ``Q(s, a_i)`` — одно и то же число.
+``M`` is the ``wiki18-gte`` shards, 21,015,324 × 768 fp32, 60.1 GiB resident on
+the GPU. The action tower is frozen and bit-identical to stock GTE, so no
+separate action index is needed: an action vector is the raw row of ``M``,
+without the RoPE rotation. This gives the identity line A rests on: the search
+score ``s @ M[i]`` and the value ``Q(s, a_i)`` are the same number.
 
-Два инварианта реализации.
+Two implementation invariants.
 
-**Маска применяется до ``topk``.** Запрос содержит текст уже выбранного чанка,
-поэтому соседи этого чанка по статье оказываются ближайшими соседями запроса.
-Маскирование после ``topk`` оставило бы пул, целиком забитый одной статьёй.
+**The mask is applied before ``topk``.** The query contains the text of the
+already selected chunk, so that chunk's neighbours from the same article are
+the query's nearest neighbours. Masking after ``topk`` would leave a pool
+filled entirely by one article.
 
-**Поиск батчевый.** Он упирается в чтение 60 ГиБ из HBM, а не в арифметику:
-один запрос стоит 15.9 мс, шестнадцать — 35 мс. Шагать среды циклом значит
-платить за каждую отдельно.
+**Search is batched.** It is bound by reading 60 GiB from HBM, not by
+arithmetic: one query costs 15.9 ms, sixteen cost 35 ms. Stepping the
+environments in a loop would pay for each one separately.
 """
 
 from __future__ import annotations
@@ -38,7 +39,7 @@ SearchResult = namedtuple(
 
 
 def discover_shard_files(shard_dir: Path) -> list[tuple[Path, int, int]]:
-    """Отсортированные шарды матрицы с проверкой непрерывности покрытия."""
+    """Sorted matrix shards, checked for contiguous row coverage."""
     shards: list[tuple[Path, int, int]] = []
     for path in sorted(Path(shard_dir).iterdir()):
         match = SHARD_PATTERN.match(path.name)
@@ -62,7 +63,7 @@ def discover_shard_files(shard_dir: Path) -> list[tuple[Path, int, int]]:
 
 
 class ActionIndex:
-    """Поиск по всем строкам ``M`` одним матричным умножением."""
+    """Search over all rows of ``M`` with a single matrix multiplication."""
 
     def __init__(
         self,
@@ -103,10 +104,10 @@ class ActionIndex:
         title_ids: Tensor | np.ndarray | None = None,
         log_every: int = 25,
     ) -> "ActionIndex":
-        """Собрать матрицу на устройстве из шардов ``wiki18-gte``.
+        """Assemble the matrix on the device from the ``wiki18-gte`` shards.
 
-        Шарды читаются через ``mmap`` и копируются пошардово: держать в RAM
-        ещё одну копию на 60 ГиБ рядом с GPU-версией незачем.
+        Shards are read through ``mmap`` and copied one at a time: there is no
+        need for another 60 GiB copy in RAM next to the GPU one.
         """
         shards = discover_shard_files(Path(shard_dir).expanduser().resolve())
         rows = shards[-1][2]
@@ -126,7 +127,7 @@ class ActionIndex:
         return cls(vectors, title_ids)
 
     def rows(self, row_ids: Tensor | Sequence[int]) -> Tensor:
-        """Векторы действий по номерам строк, форма входа сохраняется."""
+        """Action vectors for the given row ids; the input shape is preserved."""
         if not isinstance(row_ids, Tensor):
             row_ids = torch.as_tensor(row_ids, dtype=torch.long, device=self.device)
         flat = row_ids.reshape(-1).to(device=self.device, dtype=torch.long)
@@ -143,11 +144,11 @@ class ActionIndex:
         *,
         with_vectors: bool = True,
     ) -> SearchResult:
-        """Top-K по ``queries @ M.T`` с маской, применённой **до** ``topk``.
+        """Top-K over ``queries @ M.T`` with the mask applied **before** ``topk``.
 
-        ``masked_argmax`` — флаг «глобальный аргмакс запроса был замаскирован»:
-        это метрика мониторинга, показывающая, насколько часто политика видит
-        не тот максимум, который дал бы поиск без ограничений.
+        ``masked_argmax`` flags that the query's global argmax was masked: a
+        monitoring metric showing how often the policy sees a different maximum
+        from the one unconstrained search would give.
         """
         queries = queries.to(device=self.device, dtype=self.vectors.dtype)
         if queries.ndim != 2 or queries.shape[1] != self.dim:
@@ -175,8 +176,8 @@ class ActionIndex:
                     blocked[row] |= self.title_ids == int(title_id)
 
         masked_argmax = blocked.gather(1, free_argmax[:, None]).squeeze(1)
-        # -inf, а не «минимум минус единица»: замаскированная строка обязана
-        # выпасть из topk при любом размере пула, а не оказаться его хвостом.
+        # -inf rather than "minimum minus one": a masked row must drop out of
+        # topk for any pool size instead of ending up at its tail.
         scores = scores.masked_fill(blocked, float("-inf"))
         available = int((~blocked).sum(dim=1).min())
         if available < top_k:

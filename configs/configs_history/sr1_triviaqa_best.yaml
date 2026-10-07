@@ -1,39 +1,40 @@
-# TriviaQA из eval-таблицы Search-R1: обученная башня линии A.
+# TriviaQA from the Search-R1 evaluation split: the trained line A tower.
 #
-# Однохопный, out-of-domain у обеих сторон. В среднем 14 допустимых
-# ответов на вопрос, 88% вопросов с несколькими — читать здесь нужно
-# только EM по алиасам.
+# Single-hop; out-of-domain for both. On average 14 acceptable answers per
+# question and 88% of questions have several, so only alias EM should be read
+# here.
 #
-# Конфигурация ретривала — ровно та, что дала опубликованные 37.70/30.31/10.14
-# на наших собственных dev-сплитах: шесть шагов, квота N=2, шесть чанков
-# ридеру. Одна модель и одна настройка на все семь датасетов; подгонять бюджет
-# под каждый значило бы настраивать на eval.
+# The retrieval configuration is exactly the one behind the 37.70/30.31/10.14
+# EM on our own dev splits: six steps, quota N=2, six chunks to the reader. One
+# model and one setting for all seven datasets; tuning the budget per dataset
+# would mean tuning on eval.
 #
-# Читается только вместе с двумя своими соседями на тех же вопросах:
-# sr1_triviaqa_zeroshot (та же башня без чекпоинта) и sr1_triviaqa_noctx (ридер без
-# контекста вообще). Без первого неизвестно, что дало обучение, без второго —
-# сколько Qwen3-4B отвечает по памяти.
+# Read only together with its two neighbours on the same questions:
+# sr1_triviaqa_zeroshot (the same tower without a checkpoint) and
+# sr1_triviaqa_noctx (the reader with no context). Without the first, the
+# effect of training is unknown; without the second, so is how much Qwen3-4B
+# answers from memory.
 #
-# Gold-титулов у этого входа нет, поэтому title-метрики и доля потолка
-# остаются null. Главное число — EM по алиасам: Search-R1 считает EM
-# максимумом по всему golden_answers.
-label: Прямой поиск, обученная башня, 6 шагов, N=2
+# This input has no gold titles, so title metrics and the fraction of the
+# ceiling stay null. The main number is alias EM: Search-R1 computes EM as the
+# maximum over all golden_answers.
+label: Direct search, trained tower, 6 steps, N=2
 slug: sr1-best-triviaqa
 dataset: sr1_triviaqa
 
 order: 48
 hypothesis: >-
-  Обученная state-башня линии A на TriviaQA (11313 вопросов) обгоняет и свой
-  zero-shot, и ридер без контекста; результат ставится рядом с
-  Search-R1-base-7B на том же корпусе Wiki-18 и тех же вопросах.
+  The trained line A state tower on TriviaQA (11313 questions) beats both its
+  zero-shot and the no-context reader; the result is placed next to
+  Search-R1-base-7B on the same Wiki-18 corpus and the same questions.
 
 retrieve:
   kind: search
-  index_dir: /home/a.anokhin/Judge/datasets/data_sources/full-wiki/wiki18-gte
-  qrag_repo: /home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki
-  checkpoint: /home/a.anokhin/Judge/full-wiki/Q-RAG_for_full-wiki/runs/Aug03_12-44-38_lineA_main/model_best.pt
+  index_dir: /path/to/data/full-wiki/wiki18-gte
+  qrag_repo: Q-RAG_for_full-wiki
+  checkpoint: Q-RAG_for_full-wiki/runs/Aug03_12-44-38_lineA_main/model_best.pt
   state_source: critic
-  input: /home/a.anokhin/Judge/full-wiki/runs/shared/searchr1/triviaqa.jsonl
+  input: runs/shared/searchr1/triviaqa.jsonl
   cuda_visible_devices: "0"
   device: cuda:0
   model_dtype: float32
@@ -45,7 +46,8 @@ retrieve:
   auto_prepare: false
 
 judge:
-  script: /home/a.anokhin/Judge/Q-RAG-feedback/answer_judge_llms.py
+  script: src/answer_judge.py
+  contract: v1
   base_url: http://127.0.0.1:8010/v1
   answer_model: Qwen3-4B
   max_tokens: 1000

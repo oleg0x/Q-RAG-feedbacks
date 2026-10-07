@@ -1,6 +1,6 @@
-# Линия A из docs/training.md: Q-RAG как итеративный плотный ретривер.
-# Запускается train_q_rag_search.py, а не train_q_rag.py: сборка объектов
-# другая — матрица M на GPU, таблица титулов, чтение корпуса, батчевый rollout.
+# Line A (see README.md): Q-RAG as an iterative dense retriever.
+# Run with train_q_rag_search.py, not train_q_rag.py: objects are assembled
+# differently (matrix M on GPU, title table, corpus reads, batched rollout).
 defaults:
   - algo: pqn_gte
   - envs: fullwiki_search
@@ -10,25 +10,26 @@ defaults:
 
 seed: 42
 device: cuda:0
-# 30 000 оптимизационных шагов: задача труднее прежней на порядки.
+# 30,000 optimizer steps: the task is orders of magnitude harder than the
+# distractor setting.
 steps_count: 30000
-# 24 × 4 = 96 переходов на оптимизационный шаг. Не 96 × 1: градиентный
-# проход кодирует все состояния батча разом, и при 96 состояниях активации
-# (~65 ГиБ) поверх 60 ГиБ матрицы не помещаются в 140 ГиБ — смок падал OOM
-# ровно на первом update. Дробление батча снижает пик памяти вчетверо, не
-# меняя ни эффективный батч, ни число оптимизационных шагов.
+# 24 × 4 = 96 transitions per optimizer step. Not 96 × 1: the gradient pass
+# encodes all batch states at once, and with 96 states the activations
+# (~65 GiB) on top of the 60 GiB matrix do not fit in 140 GiB (OOM on the first
+# update). Splitting the batch cuts peak memory fourfold without changing the
+# effective batch or the number of optimizer steps.
 batch_size: 24
 accumulate_grads: 4
 eval_interval: 500
 eval_episodes: 1000
-# Поиск упирается в чтение 60 ГиБ, один запрос стоит как шестнадцать.
+# Search is bound by reading 60 GiB: sixteen queries cost about as much as one.
 envs_parallel: 16
 max_action_length: 256
 max_action_length_in_memory: 256
-# Action-башня заморожена и обязана оставаться побитово равной стоковой GTE:
-# векторы действий берутся прямо из шардов wiki18-gte.
+# The action tower is frozen and must stay bit-identical to stock GTE:
+# action vectors are taken directly from the wiki18-gte shards.
 train_action_embed: false
-# Случайной фазы у линии A нет: равномерный выбор из 21 млн строк — шум.
+# Line A has no random phase: a uniform choice among 21M rows is noise.
 learning_start: 0
 
 feedback:
@@ -36,27 +37,27 @@ feedback:
 
 algo:
   pqn:
-    # normalize=false у обеих state-башен: на ранжирование это не влияет
-    # (‖s‖ один и тот же для всех кандидатов состояния), зато Q перестаёт
-    # упираться в потолок 1.0. Action-сторона нормирована — так собран индекс.
+    # normalize=false for both state towers: ranking is unaffected (‖s‖ is
+    # the same for all candidates of a state), but Q is no longer capped at
+    # 1.0. The action side is normalized, as that is how the index was built.
     state_embed:
       normalize: false
     state_embed_target:
       normalize: false
     hyperparams:
-      # Пул политики равен пулу поиска: V считается по тем же ста кандидатам,
-      # из которых выбирается действие.
+      # The policy pool equals the search pool: V is computed over the same
+      # hundred candidates the action is chosen from.
       top_k_actions: ${envs.top_k}
-      # Калибровочная голова Q = w·(s·M[a]) + b. Без неё логиты ±20 при
-      # таргетах [0,1], и на переобучении 100 примеров MSE разворачивал
-      # башню в анти-корреляцию со стартом (косинус −0.25, recall пула 0).
-      # scale_init = 1/‖s₀‖ при ‖s₀‖ ≈ 20.8; lr головы быстрый, чтобы
-      # рассогласование масштаба чинил скаляр, а не веса башни.
+      # Calibration head Q = w·(s·M[a]) + b. Without it logits are ±20 against
+      # [0,1] targets, and when overfitting 100 examples the MSE turned the
+      # tower anti-correlated with its start (cosine −0.25, pool recall 0).
+      # scale_init = 1/‖s₀‖ with ‖s₀‖ ≈ 20.8; the head lr is high so that the
+      # scale mismatch is fixed by the scalar rather than the tower weights.
       q_head:
         scale_init: 0.048
         lr: 1e-3
-      # Явное расписание вместо alpha ∝ lr. Прежняя связь давала почти
-      # нулевую температуру во время warmup и рост к середине рана.
+      # Explicit schedule instead of alpha ∝ lr. That coupling gave a near-zero
+      # temperature during warmup and a rise toward mid-run.
       alpha_schedule:
         kind: constant
         start: ${algo.pqn.hyperparams.alpha}

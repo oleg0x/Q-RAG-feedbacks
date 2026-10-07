@@ -500,11 +500,11 @@ class AnswerMetricFeedback(AFeedbackModel):
 
     def copy(self):
         """
-        Создаёт новый экземпляр AnswerMetricFeedback, который ССЫЛАЕТСЯ на тот же llm_generator
-        и те же функции/объекты, не создавая новую LLM-модель и не копируя веса.
+        Create a new AnswerMetricFeedback that REFERENCES the same llm_generator
+        and the same functions/objects, without creating a new LLM or copying weights.
         """
         return AnswerMetricFeedback(
-            llm_generator=self.llm,                 # шарим существующий LLMGenerator
+            llm_generator=self.llm,                 # share the existing LLMGenerator
             reward_scaling=self.reward_scaling,
             metric=self.metric,
             never_terminate=self.never_terminate,
@@ -515,8 +515,8 @@ class AnswerMetricFeedback(AFeedbackModel):
 
 # class LLMJudgeFeedback(AFeedbackModel):
 #     """
-#     Вызывает внешнюю LLM-оценку в конце эпизода.
-#     `judge_fn` должен вернуть bool.
+#     Calls an external LLM judge at the end of the episode.
+#     `judge_fn` must return a bool.
 #     """
 #     FEEDBACK_MODEL_NAME = 'LLMJudge'
 #     DEFAULT_SAMPLING_PARAMS = {
@@ -555,7 +555,7 @@ class AnswerMetricFeedback(AFeedbackModel):
 #         self.sampling_params = sampling_params
 #         self.use_api = use_api
 #         self.reward_scaling = reward_scaling
-#         self.judge_model_name = judge_model_name  # сохраняем для API
+#         self.judge_model_name = judge_model_name  # kept for the API
 #
 #         if not use_api:
 #             if vllm_config:
@@ -566,17 +566,17 @@ class AnswerMetricFeedback(AFeedbackModel):
 #             self.judge_tok = AutoTokenizer.from_pretrained(judge_model_name)
 #             self._shutdown_called = False
 #
-#             # Лаконичная регистрация обработчиков завершения
+#             # Compact registration of shutdown handlers
 #             atexit.register(self.__del__)
 #             signal.signal(signal.SIGINT, lambda *_: (self.__del__(), exit(130)))
 #             signal.signal(signal.SIGTERM, lambda *_: (self.__del__(), exit(0)))
 #         else:
-#             # если нужен прокси, то переопредели после __init__ атрибут obj.api_client.http_client
+#             # if a proxy is needed, override obj.api_client.http_client after __init__
 #             self.api_client = AsyncOpenAI(api_key=api_key, base_url=api_base_url)
 #             self.max_at_same_time = max_at_same_time
 #
 #     def __del__(self):
-#         """Корректно завершает работу vLLM (деструктор)"""
+#         """Shut down vLLM cleanly (destructor)"""
 #         if getattr(self, '_shutdown_called', False):
 #             return
 #         self._shutdown_called = True
@@ -643,9 +643,9 @@ class AnswerMetricFeedback(AFeedbackModel):
 #         return decoded_texts
 #
 #     def _generate_judge_api(self, prompts: list[str]) -> list[str]:
-#         """Асинхронно обрабатывает список промптов через OpenAI ChatCompletion API."""
+#         """Process a list of prompts asynchronously via the OpenAI ChatCompletion API."""
 #
-#         # Встроенная асинхронная корутина для одного вызова
+#         # Inner async coroutine for a single call
 #         async def _fetch(prompt: str, sem: asyncio.Semaphore):
 #             async with sem:
 #                 messages = self._build_messages_judge(prompt)
@@ -657,13 +657,13 @@ class AnswerMetricFeedback(AFeedbackModel):
 #                 return resp.choices[0].message.content
 #
 #         async def _gather_all():
-#             # Ограничиваем одновременное количество запросов для контроля RPS
+#             # Limit the number of concurrent requests to control RPS
 #             concurrency_limit = min(self.max_at_same_time, len(prompts))
 #             semaphore = asyncio.Semaphore(concurrency_limit)
 #             tasks = [_fetch(p, semaphore) for p in prompts]
 #             return await asyncio.gather(*tasks)
 #
-#         # Запускаем корутину, даже если уже существует активный цикл (например, в Jupyter)
+#         # Run the coroutine even if an event loop is already running (e.g. in Jupyter)
 #         try:
 #             loop = asyncio.get_running_loop()
 #             return asyncio.run_coroutine_threadsafe(_gather_all(), loop).result()  # TODO: remove this
@@ -671,21 +671,21 @@ class AnswerMetricFeedback(AFeedbackModel):
 #             return asyncio.run(_gather_all())
 #
 #     def _judge(self, questions: list[str], predicted_answers: list[str], true_answers: list[str]) -> list[bool]:
-#         """Обрабатывает батч вопросов и возвращает батч решений"""
+#         """Process a batch of questions and return a batch of decisions"""
 #         batch_prompts = []
 #
-#         # Создаем промпты для каждого элемента в батче
+#         # Build a prompt for each batch element
 #         for question, predicted_answer, true_answer in zip(questions, predicted_answers, true_answers):
 #             prompt = self._build_prompt_judge(question, predicted_answer, true_answer)
 #             batch_prompts.append(prompt)
 #
-#         # Генерируем ответы для всего батча
+#         # Generate responses for the whole batch
 #         if self.use_api:
 #             judge_completions = self._generate_judge_api(batch_prompts)
 #         else:
 #             judge_completions = self._generate_judge_local_vllm(batch_prompts)
 #
-#         # Обрабатываем каждый ответ
+#         # Parse each response
 #         decisions = []
 #         for completion in judge_completions:
 #             judge_decision = completion.split("FINAL ANSWER: ")[-1].strip()
@@ -699,19 +699,19 @@ class AnswerMetricFeedback(AFeedbackModel):
 #                true_answer: Union[str, list[str]]
 #                ) -> Union[float, list[float]]:
 #
-#         # Преобразуем в списки если переданы строки
+#         # Convert to lists if strings were passed
 #         if isinstance(question, str):
 #             question = [question]
 #             predicted_answer = [predicted_answer]
 #             true_answer = [true_answer]
 #
-#         # Получаем батч решений от судьи
+#         # Get a batch of decisions from the judge
 #         llm_judgments = self._judge(question, predicted_answer, true_answer)
 #
-#         # Вычисляем награды для каждого элемента батча
+#         # Compute the reward for each batch element
 #         rewards = [self.reward_scaling if judgment else 0. for judgment in llm_judgments]
 #
-#         # Возвращаем одно значение если был передан один элемент
+#         # Return a single value if a single element was passed
 #         return rewards[0] if len(rewards) == 1 else rewards
 #
 # # TODO: check if this function is a copy of the one in prompts_and_metrics/
@@ -745,12 +745,12 @@ class AnswerMetricFeedback(AFeedbackModel):
 if __name__ == "__main__":
     model = "Qwen/Qwen3-1.7B"
 
-    # Одиночные примеры
+    # Single examples
     question = "What is the capital of France?"
     predicted_answer = "Paris \n"
     true_answer = "Paris"
 
-    # Батч примеров
+    # Batch of examples
     questions_batch = [
                           "What is the capital of France?",
                           "What is the capital of Germany?",
@@ -767,7 +767,7 @@ if __name__ == "__main__":
                              "44"
                          ] * 100
 
-    print("Инициализация LLMJudge с vLLM движком...")
+    print("Initializing LLMJudge with the vLLM engine...")
     judge_feedback = LLMJudgeFeedback(
         use_api=False,
         judge_model_name=model,
@@ -777,43 +777,43 @@ if __name__ == "__main__":
     EM_feedback = ExactMatchFeedback(reward_scaling=3.0)
     F1_feedback = F1ScoreFeedback(reward_scaling=3.0)
 
-    print("----------------Exact Match (одиночный пример)-----------------")
+    print("----------------Exact Match (single example)-----------------")
     em_reward = EM_feedback.reward(predicted_answer, true_answer)
     print(f"em_reward: {em_reward}")
 
-    print("----------------Exact Match (батч)-----------------")
+    print("----------------Exact Match (batch)-----------------")
     em_rewards_batch = EM_feedback.reward(predicted_answers_batch, true_answers_batch)
     print(f"em_rewards_batch: {em_rewards_batch}")
 
-    print("----------------F1 Score (одиночный пример)-----------------")
+    print("----------------F1 Score (single example)-----------------")
     f1_reward = F1_feedback.reward(predicted_answer, true_answer)
     print(f"f1_reward: {f1_reward}")
 
-    print("----------------F1 Score (батч)-----------------")
+    print("----------------F1 Score (batch)-----------------")
     f1_rewards_batch = F1_feedback.reward(predicted_answers_batch, true_answers_batch)
     print(f"f1_rewards_batch: {f1_rewards_batch}")
 
-    print("--------------Judge Feedback (одиночный пример)----------------")
+    print("--------------Judge Feedback (single example)----------------")
     judge_reward = judge_feedback.reward(question, predicted_answer, true_answer)
     print(f"judge_reward: {judge_reward}")
 
-    print("--------------Judge Feedback (батч)----------------")
+    print("--------------Judge Feedback (batch)----------------")
     judge_rewards_batch = judge_feedback.reward(questions_batch, predicted_answers_batch, true_answers_batch)
     print(f"judge_rewards_batch: {judge_rewards_batch}")
 
     # judge_feedback_api = LLMJudgeFeedback(
     #     use_api=True,
-    #     judge_model_name="/trinity/home/i.evdokimov/models/Qwen2.5-7B-Instruct",
+    #     judge_model_name="/path/to/models/Qwen2.5-7B-Instruct",
     #     reward_scaling=3.0,
     #     api_key="some-key",
     #     api_base_url='http://localhost:10001/v1',
     #     max_at_same_time=25,
     # )
 
-    # print("--------------Judge Feedback with API (одиночный пример)----------------")
+    # print("--------------Judge Feedback with API (single example)----------------")
     # judge_reward_api = judge_feedback_api.reward(question, predicted_answer, true_answer)
     # print(f"API judge_reward: {judge_reward_api}")
 
-    # print("--------------Judge Feedback with API (батч)----------------")
+    # print("--------------Judge Feedback with API (batch)----------------")
     # judge_rewards_batch_api = judge_feedback_api.reward(questions_batch, predicted_answers_batch, true_answers_batch)
     # print(f"API judge_rewards_batch: {judge_rewards_batch_api}")

@@ -27,8 +27,8 @@ def test_paragraphs_of_one_article_become_one_context_entry() -> None:
         ["Alpha", ["alpha one", "alpha two"]],
         ["Beta", ["beta one"]],
     ]
-    # Оба опорных абзаца принадлежат одной статье, поэтому различный
-    # gold-титул здесь ровно один — именно так его посчитает title_em.
+    # Both supporting paragraphs belong to one article, so there is exactly
+    # one distinct gold title, which is how title_em will count it.
     assert result["supporting_facts"] == [["Alpha", 0], ["Alpha", 1]]
     assert len({fact[0] for fact in result["supporting_facts"]}) == 1
 
@@ -36,8 +36,8 @@ def test_paragraphs_of_one_article_become_one_context_entry() -> None:
 def test_converted_sample_yields_the_original_supporting_texts() -> None:
     sample = musique_sample()
     converted = musique.convert_sample(sample, 0)
-    # Та же проверка, что и в конвертере: читаем результат тем кодом,
-    # которым его будет читать пайплайн.
+    # The same check as in the converter: read the result with the code the
+    # pipeline will read it with.
     musique.verify_sample(sample, converted)
 
 
@@ -45,7 +45,7 @@ def test_verify_catches_a_broken_conversion() -> None:
     sample = musique_sample()
     converted = musique.convert_sample(sample, 0)
     converted["supporting_facts"] = [["Alpha", 0]]
-    with pytest.raises(RuntimeError, match="gold-предложения"):
+    with pytest.raises(RuntimeError, match="gold sentences"):
         musique.verify_sample(sample, converted)
 
 
@@ -56,7 +56,7 @@ def test_aliases_and_hop_type_are_carried_over() -> None:
 
 
 def test_missing_answer_is_a_hard_error() -> None:
-    with pytest.raises(ValueError, match="пустой ответ"):
+    with pytest.raises(ValueError, match="empty answer"):
         musique.convert_sample(musique_sample(answer=""), 0)
 
 
@@ -64,5 +64,5 @@ def test_sample_without_supporting_paragraphs_is_rejected() -> None:
     paragraphs = [
         {"idx": 0, "title": "Alpha", "paragraph_text": "alpha", "is_supporting": False}
     ]
-    with pytest.raises(ValueError, match="нет опорных абзацев"):
+    with pytest.raises(ValueError, match="no supporting paragraphs"):
         musique.convert_sample(musique_sample(paragraphs=paragraphs), 0)

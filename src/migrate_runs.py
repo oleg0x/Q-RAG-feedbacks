@@ -1,23 +1,22 @@
 #!/usr/bin/env python3
-"""Разовая миграция ранов, сделанных до появления реестра (до 2026-07-28).
+"""One-off migration of runs made before the run registry existed.
 
-До миграции ``runs/`` был плоским каталогом на 1.9 ГБ: параметры прогона
-кодировались в имени файла (``_steps4``, ``_mt1000``, ``_smoke20``), а
-соответствие «файл ↔ команда, которой он получен» существовало только в
-README. Скрипт раскладывает эти файлы по каталогам ранов, восстанавливает
-для каждого манифест из зафиксированных в README параметров и пересчитывает
-метрики из самих файлов.
+Before the migration ``runs/`` was a flat 1.9 GB directory: run parameters
+were encoded in file names (``_steps4``, ``_mt1000``, ``_smoke20``), and the
+mapping "file ↔ command that produced it" existed only in the README. The
+script moves these files into run directories, reconstructs a manifest for
+each run from the documented parameters and recomputes the metrics from the
+files themselves.
 
-Что важно понимать про восстановленные манифесты: параметры взяты из
-документации, а не записаны в момент запуска, поэтому у них стоит
-``"backfilled": true`` и ``"git_commit": null``. Метрики при этом настоящие —
-они считаются тем же ``report_phase0.score_run``, что и для новых ранов.
+Backfilled manifests take their parameters from documentation rather than
+from a record made at launch time, so they carry ``"backfilled": true`` and
+``"git_commit": null``. The metrics are genuine: they are computed by the same
+``report_phase0.score_run`` as for new runs.
 
-    python src/migrate_runs.py --dry-run    показать план, ничего не трогая
-    python src/migrate_runs.py              выполнить
+    python src/migrate_runs.py --dry-run    show the plan without touching anything
+    python src/migrate_runs.py              execute
 
-Старые пути остаются рабочими: на каждый перенесённый файл ставится симлинк
-с прежним именем, поэтому команды из docs/pipeline.md продолжают работать.
+Old paths keep working: every moved file gets a symlink under its former name.
 """
 
 from __future__ import annotations
@@ -36,32 +35,32 @@ from build_index_wiki_gte import cached_sha256
 
 LOG = logging.getLogger("migrate-runs")
 
-DATASETS = Path("/home/a.anokhin/Judge/datasets/data_sources")
+DATASETS = Path("/path/to/data")
 HOTPOT_FULLWIKI = DATASETS / "hotpotqa/hotpot_dev_fullwiki_v1.json"
 HOTPOT_DISTRACTOR = DATASETS / "hotpotqa/hotpot_dev_distractor_v1.json"
 QRAG_INDEX = DATASETS / "full-wiki/wiki18-qrag-jul21-best-raw"
 GTE_INDEX = DATASETS / "full-wiki/wiki18-gte"
-QRAG_REPO = Path("/home/a.anokhin/Judge/Q-RAG-feedback")
+QRAG_REPO = Path("/path/to/Q-RAG-feedback")
 ANSWER_JUDGE = QRAG_REPO / "answer_judge_llms.py"
 
-# Окружение сборки, зафиксированное в docs/reproducibility.md. Восстановленные
-# раны не могут сообщить его сами, поэтому оно проставляется из документации.
+# Build environment as documented at the time. Backfilled runs cannot report
+# it themselves, so it is filled in from the documentation.
 BACKFILL_ENV = {
     "python": "3.11.14",
-    "executable": "/home/a.anokhin/venvs/gpu/bin/python",
+    "executable": "/path/to/venv/bin/python",
     "torch": "2.10.0",
     "numpy": "2.2.6",
     "faiss": "1.14.3",
     "transformers": "4.57.6",
     "sentence-transformers": "5.2.3",
     "gpu": ["NVIDIA H200, 143771 MiB"],
-    "source": "docs/reproducibility.md",
+    "source": "documented build environment",
 }
 
-# Хеш версии fullwiki_qrag.py, которой получены три канонических Q-RAG-рана:
-# в ней ещё не было --reranker и --log-candidates. Регрессия из
-# docs/pipeline.md §7 подтверждает, что текущая версия с дефолтными флагами
-# воспроизводит эти раны по pred_idx, retrieval_hops и title_*_exact.
+# Hash of the fullwiki_qrag.py version that produced the three canonical Q-RAG
+# runs; it predates --reranker and --log-candidates. A regression check
+# confirmed that the current version with default flags reproduces these runs
+# in pred_idx, retrieval_hops and title_*_exact.
 QRAG_RUN_SCRIPT_SHA = "c9c5db13ce9b70b463daf5913ba3aa0ab2ee78996acc5a3b2d1851e71f2b5418"
 CURRENT_SCRIPT_SHA = "9968053b4c2d5a3f6626f28caf721fcedda0499ec80a72afee904bf5a00506ac"
 EVAL_VARIANTS_SHA = "5c71e40dddaa3e3552e1236140e0d845b439c6a68cf382c51e439cb49570d1a0"
@@ -77,12 +76,12 @@ JUDGE_CONFIG = {
 }
 
 QRAG_HYPOTHESIS = (
-    "Обученный Q-RAG-реранкер поверх top-100 GTE поднимает answer-метрики "
-    "относительно голого first-stage."
+    "A trained Q-RAG reranker over GTE top-100 improves answer metrics over "
+    "plain first-stage retrieval."
 )
 GTE_HYPOTHESIS = (
-    "Голый first-stage GTE — baseline, относительно которого измеряется "
-    "вклад Q-RAG."
+    "Plain first-stage GTE: the baseline against which the contribution of "
+    "Q-RAG is measured."
 )
 
 
@@ -126,15 +125,15 @@ def variant_retrieve_config(context: str, **extra: Any) -> dict[str, Any]:
     return config
 
 
-# Раскладка старого плоского runs/ по каталогам ранов. Порядок определяет
-# порядок строк в runs/INDEX.md.
+# Layout of the old flat runs/ into run directories. The order here defines
+# the row order in runs/INDEX.md.
 RUN_SPECS: list[dict[str, Any]] = [
     {
         "run_id": "2026-07-28-no-retrieval",
         "config_file": "no_retrieval.yaml",
         "order": 10,
         "label": "no retrieval",
-        "hypothesis": "Сколько ридер отвечает вообще без контекста — нижняя граница.",
+        "hypothesis": "How well the reader answers with no context at all (lower bound).",
         "retrieval": "fullwiki_no_retrieval.jsonl",
         "judge": "fullwiki_no_retrieval_answer_judge_mt1000.json",
         "retrieve": variant_retrieve_config("none"),
@@ -173,7 +172,7 @@ RUN_SPECS: list[dict[str, Any]] = [
         "run_id": "2026-07-28-qrag-fixed-steps2",
         "config_file": "qrag_steps2.yaml",
         "order": 50,
-        "label": "Q-RAG, 2 шага",
+        "label": "Q-RAG, 2 steps",
         "hypothesis": QRAG_HYPOTHESIS,
         "retrieval": "fullwiki_qrag_fixed.jsonl",
         "judge": "fullwiki_qrag_fixed_answer_judge_mt1000.json",
@@ -184,7 +183,7 @@ RUN_SPECS: list[dict[str, Any]] = [
         "run_id": "2026-07-28-qrag-fixed-steps4",
         "config_file": "qrag_steps4.yaml",
         "order": 60,
-        "label": "Q-RAG, 4 шага",
+        "label": "Q-RAG, 4 steps",
         "hypothesis": QRAG_HYPOTHESIS,
         "retrieval": "fullwiki_qrag_fixed_steps4.jsonl",
         "judge": "fullwiki_qrag_fixed_steps4_answer_judge_mt1000.json",
@@ -195,7 +194,7 @@ RUN_SPECS: list[dict[str, Any]] = [
         "run_id": "2026-07-28-qrag-fixed-steps6",
         "config_file": "qrag_steps6.yaml",
         "order": 70,
-        "label": "Q-RAG, 6 шагов",
+        "label": "Q-RAG, 6 steps",
         "hypothesis": QRAG_HYPOTHESIS,
         "retrieval": "fullwiki_qrag_fixed_steps6.jsonl",
         "judge": "fullwiki_qrag_fixed_steps6_answer_judge_mt1000.json",
@@ -208,7 +207,7 @@ RUN_SPECS: list[dict[str, Any]] = [
         "config_file": "oracle_sf.yaml",
         "order": 80,
         "label": "oracle (gold sentences)",
-        "hypothesis": "Потолок ридера при идеальном ретривале по HotpotQA.",
+        "hypothesis": "Reader ceiling under ideal retrieval over HotpotQA.",
         "retrieval": "fullwiki_oracle_sf.jsonl",
         "judge": "fullwiki_oracle_sf_answer_judge_mt1000.json",
         "retrieve": variant_retrieve_config(
@@ -218,21 +217,21 @@ RUN_SPECS: list[dict[str, Any]] = [
 ]
 
 SHARED_FILES = {
-    "hotpotqa_dev_title_coverage.json": "потолок покрытия корпуса Wiki-18",
-    "phase0_report.json": "вывод report_phase0.py по восьми каноническим ранам",
+    "hotpotqa_dev_title_coverage.json": "Wiki-18 corpus coverage ceiling",
+    "phase0_report.json": "report_phase0.py output for the eight canonical runs",
 }
 
 ARCHIVE_FILES = {
     "fullwiki_qrag_fixed_answer_judge.json": (
-        "Предварительный прогон Q-RAG steps=2 с лимитами reader 128 / judge 32. "
-        "Не сопоставим с каноническими 1000/100 и не должен использоваться для "
-        "сравнения моделей."
+        "Preliminary Q-RAG steps=2 run with token limits reader 128 / judge 32. "
+        "Not comparable with the canonical 1000/100 and must not be used to "
+        "compare models."
     ),
     "fullwiki_qrag_fixed_smoke20.jsonl": (
-        "Smoke-прогон на 20 примерах при отладке retrieval, метрик не даёт."
+        "Smoke run on 20 examples while debugging retrieval; yields no metrics."
     ),
     "fullwiki_qrag_fixed_dedupe_smoke20.jsonl": (
-        "Smoke-прогон на 20 примерах для проверки title deduplication."
+        "Smoke run on 20 examples to check title deduplication."
     ),
 }
 
@@ -247,7 +246,7 @@ def sha256_of(path: Path) -> str:
 
 
 def retrieve_argv(spec: dict[str, Any], run: Path) -> list[str]:
-    """Команда retrieve, воспроизводящая ран сегодня, с путями внутри runs/."""
+    """Retrieve command that reproduces the run today, with paths inside runs/."""
     config = spec["retrieve"]
     output = str(run / runlib.RETRIEVAL_FILE)
     python = str(runlib.VENV_PYTHON)
@@ -292,11 +291,10 @@ def retrieve_argv(spec: dict[str, Any], run: Path) -> list[str]:
 
 
 def judge_command(spec: dict[str, Any]) -> str:
-    """Команда reader+judge, как её собирает exp.py (32-way sharding)."""
+    """Reader+judge command as exp.py builds it (32-way sharding)."""
     return (
         f"python exp.py run --config configs/{spec['config_file']} --only judge\n"
-        f"# внутри: split -n l/32 → 32 × answer_judge_llms.py → jq -s add\n"
-        f"# подробности схемы: docs/pipeline.md §6"
+        f"# inside: split -n l/32 → 32 × answer_judge_llms.py → jq -s add"
     )
 
 
@@ -324,9 +322,9 @@ def build_manifest(spec: dict[str, Any], run: Path) -> dict[str, Any]:
         "status": "ok",
         "backfilled": True,
         "backfill_note": (
-            "Ран выполнен до появления exp.py. Параметры восстановлены из "
-            "docs/pipeline.md §4, §4b и §6, окружение и хеши скриптов — из "
-            "docs/reproducibility.md. Метрики пересчитаны из файлов рана."
+            "Run made before exp.py existed. Parameters, environment and "
+            "script hashes were reconstructed from the documentation of the "
+            "time; metrics were recomputed from the run files."
         ),
         "created_utc": mtime_utc(retrieval),
         "finished_utc": mtime_utc(judge),
@@ -355,7 +353,7 @@ def build_manifest(spec: dict[str, Any], run: Path) -> dict[str, Any]:
             "git_commit": None,
             "git_dirty": None,
             "scripts": scripts,
-            "note": "Репозиторий заведён после этих ранов, коммита не существует.",
+            "note": "The repository was created after these runs; there is no commit.",
         },
         "inputs": {
             "dataset": str(HOTPOT_FULLWIKI),
@@ -388,11 +386,11 @@ class Migration:
 
     def move(self, source: Path, destination: Path) -> None:
         if destination.exists():
-            raise FileExistsError(f"Цель уже существует: {destination}")
+            raise FileExistsError(f"Destination already exists: {destination}")
         size = source.stat().st_size / 1e6
         self.note(
             f"mv {source.name} → "
-            f"{destination.relative_to(runlib.REPO)} ({size:.0f} МБ)"
+            f"{destination.relative_to(runlib.REPO)} ({size:.0f} MB)"
         )
         if not self.dry_run:
             shutil.move(str(source), str(destination))
@@ -414,14 +412,14 @@ class Migration:
 
 
 def write_run_metadata(migration: Migration, spec: dict[str, Any]) -> None:
-    """Манифест, метрики и cmd.sh для уже разложенного рана."""
+    """Manifest, metrics and cmd.sh for a run whose files are already in place."""
     run = runlib.run_dir(spec["run_id"])
     if migration.dry_run:
-        migration.note(f"manifest + metrics + cmd.sh для {spec['run_id']}")
+        migration.note(f"manifest + metrics + cmd.sh for {spec['run_id']}")
         return
 
     manifest = build_manifest(spec, run)
-    LOG.info("Пересчитываю метрики: %s", spec["run_id"])
+    LOG.info("Recomputing metrics: %s", spec["run_id"])
     manifest["metrics"] = runlib.score_judge_file(
         run / runlib.JUDGE_FILE,
         dataset=runlib.dataset_key(manifest.get("config", {})),
@@ -431,11 +429,11 @@ def write_run_metadata(migration: Migration, spec: dict[str, Any]) -> None:
 
     cmd = [
         "#!/usr/bin/env bash",
-        "# Восстановлено migrate_runs.py: этот ран сделан до появления exp.py,",
-        "# команды реконструированы из docs/pipeline.md и приведены к путям",
-        "# внутри каталога рана.",
+        "# Reconstructed by migrate_runs.py: this run predates exp.py, so the",
+        "# commands were rebuilt from the documentation and rewritten to use",
+        "# paths inside the run directory.",
         "set -euo pipefail",
-        "cd /home/a.anokhin/Judge/full-wiki",
+        "cd /path/to/repo",
         "",
     ]
     environment = spec["retrieve"].get("cuda_visible_devices")
@@ -456,15 +454,15 @@ def write_run_metadata(migration: Migration, spec: dict[str, Any]) -> None:
 
 
 def refresh_metadata(migration: Migration) -> None:
-    """Перегенерировать метаданные уже перенесённых ранов.
+    """Regenerate the metadata of runs that have already been moved.
 
-    Нужно, когда меняется схема манифеста: файлы рана трогать не нужно, а
-    восстановленные манифесты должны остаться в актуальном формате.
+    Needed when the manifest schema changes: the run files stay untouched, but
+    backfilled manifests must follow the current format.
     """
     for spec in RUN_SPECS:
         run = runlib.run_dir(spec["run_id"])
         if not (run / runlib.JUDGE_FILE).exists():
-            LOG.warning("Пропускаю %s: нет %s", run.name, runlib.JUDGE_FILE)
+            LOG.warning("Skipping %s: no %s", run.name, runlib.JUDGE_FILE)
             continue
         write_run_metadata(migration, spec)
 
@@ -479,9 +477,9 @@ def migrate(migration: Migration) -> None:
     ]
     if missing:
         raise FileNotFoundError(
-            "В runs/ нет ожидаемых файлов, миграция уже выполнена или "
-            f"каталог изменён: {', '.join(missing)}. "
-            "Для перегенерации манифестов используйте --metadata-only."
+            "runs/ lacks the expected files; the migration has already run or "
+            f"the directory has changed: {', '.join(missing)}. "
+            "Use --metadata-only to regenerate the manifests."
         )
 
     migration.mkdir(runlib.SHARED)
@@ -491,7 +489,7 @@ def migrate(migration: Migration) -> None:
             migration.move(source, runlib.SHARED / name)
             migration.symlink(runs / name, runlib.SHARED / name)
         else:
-            LOG.warning("Общий артефакт отсутствует: %s (%s)", name, purpose)
+            LOG.warning("Shared artifact missing: %s (%s)", name, purpose)
 
     migration.mkdir(runlib.ARCHIVE)
     archived = []
@@ -502,10 +500,10 @@ def migrate(migration: Migration) -> None:
             archived.append((name, reason))
     if archived:
         lines = [
-            "# Архив ранов",
+            "# Run archive",
             "",
-            "Файлы здесь сохранены как след экспериментов, но не участвуют в",
-            "сравнении моделей и не входят в git.",
+            "Files here are kept as a record of past experiments; they take no",
+            "part in model comparison and are not tracked by git.",
             "",
         ]
         for name, reason in archived:
@@ -533,17 +531,17 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="показать план перемещений и выйти",
+        help="show the planned moves and exit",
     )
     parser.add_argument(
         "--no-symlinks",
         action="store_true",
-        help="не оставлять симлинки на прежних именах файлов",
+        help="do not leave symlinks under the old file names",
     )
     parser.add_argument(
         "--metadata-only",
         action="store_true",
-        help="ничего не перемещать, только перегенерировать манифесты и cmd.sh",
+        help="move nothing, only regenerate manifests and cmd.sh",
     )
     parser.add_argument(
         "--log-level", choices=("DEBUG", "INFO", "WARNING"), default="INFO"
@@ -563,8 +561,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     else:
         migrate(migration)
     LOG.info(
-        "%s: %d действий",
-        "План" if args.dry_run else "Выполнено",
+        "%s: %d actions",
+        "Plan" if args.dry_run else "Done",
         len(migration.actions),
     )
     return 0
@@ -574,8 +572,8 @@ if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except KeyboardInterrupt:
-        LOG.error("Прервано")
+        LOG.error("Interrupted")
         raise SystemExit(130)
     except Exception as error:
-        LOG.error("Не удалось: %s", error)
+        LOG.error("Failed: %s", error)
         raise

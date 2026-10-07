@@ -1,7 +1,7 @@
 max_steps: 2
 task: "hotpotqa"
-data_path: "/home/a.anokhin/Judge/output/hotpotqa_guided/hotpot_candidate_train.jsonl"
-test_data_path: "/home/a.anokhin/Judge/datasets/data_sources/hotpotqa"
+data_path: "/path/to/workspace/output/hotpotqa_guided/hotpot_candidate_train.jsonl"
+test_data_path: "/path/to/data/hotpotqa"
 sort_by_index: False
 
 positions_processor: none

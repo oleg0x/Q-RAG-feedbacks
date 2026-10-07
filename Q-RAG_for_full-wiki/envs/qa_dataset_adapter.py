@@ -121,9 +121,9 @@ class QADatasetAdapter(Dataset):
         elif source == "NQ+HotPotQA":
             sample_id = sample["id"]
             question = sample["question"]
-            # golden_answers — список допустимых ответов. Основным считается
-            # первый, остальные едут отдельным полем: сравнивать предсказание
-            # со склейкой всех вариантов нельзя, EM не сработает ни на одном.
+            # golden_answers is the list of accepted answers. The first one is
+            # the main answer, the rest go into a separate field: comparing a
+            # prediction with all aliases glued together fails EM on every one.
             answer_variants = list(sample["golden_answers"])
             answer = answer_variants[0]
             chunk_texts = ["111", "222", "333"]

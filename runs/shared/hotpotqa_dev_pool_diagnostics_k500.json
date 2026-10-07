@@ -16,7 +16,7 @@
     "examples_with_all_gold": 0.5658338960162053
   },
   "gold_rank": {
-    "comment": "Позиции gold-титулов в ранжировании GTE, 0-based, отсортированные по возрастанию: 'best' — легче найденный gold, 'second' — следующий за ним. -1 означает «в пуле нет».",
+    "comment": "Ranks of gold titles in the GTE ranking, 0-based, sorted ascending: 'best' is the easier-found gold title, 'second' the next one. -1 means 'not in the pool'.",
     "best_found": {
       "median": 0.0,
       "mean": 12.532393124724548,
@@ -70,7 +70,7 @@
     }
   },
   "chunk_granularity": {
-    "comment": "Титул в пуле есть — лежит ли в его чанке gold-предложение. 'full' — предложение целиком внутри чанка, 'partial' — половина (чанк Wiki-18 режется по 100 слов и рвёт предложения), 'none' — не найдено. 'selected_chunk' — лучший по рангу чанк титула, то есть тот, который возьмёт отбор при включённой дедупликации; 'any_chunk_in_pool' — верхняя граница, если бы разрешалось взять любой чанк статьи из пула.",
+    "comment": "Given the title is in the pool, does its chunk contain the gold sentence. 'full': the whole sentence is inside the chunk; 'partial': half of it (Wiki-18 chunks are cut every 100 words and split sentences); 'none': not found. 'selected_chunk': the best-ranked chunk of the title, i.e. the one selection takes with deduplication on; 'any_chunk_in_pool': the upper bound if any chunk of the article in the pool could be taken.",
     "selected_chunk": {
       "full": 3275,
       "partial": 3019,
@@ -87,6 +87,6 @@
     "examples_with_gold_in_pool": 6807,
     "examples_losing_a_sentence": 0.8220949023064492
   },
-  "input": "/home/a.anokhin/Judge/full-wiki/runs/2026-08-02-gte-pool-diag-k500/retrieval.jsonl",
-  "gold_source": "/home/a.anokhin/Judge/datasets/data_sources/hotpotqa/hotpot_dev_distractor_v1.json"
+  "input": "/path/to/repo/runs/2026-08-02-gte-pool-diag-k500/retrieval.jsonl",
+  "gold_source": "/path/to/data/hotpotqa/hotpot_dev_distractor_v1.json"
 }
