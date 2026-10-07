@@ -36,7 +36,7 @@ index:
   dim: 768
 
 title_table: /path/to/data/full-wiki/wiki18-gte/corpus-title-ids.npy
-corpus: /path/to/data/full-wiki/data00/jiajie_jin/flashrag_indexes/wiki_dpr_100w/wiki_dump.jsonl
+corpus: /path/to/data/full-wiki/wiki_dump.jsonl
 offsets: /path/to/data/full-wiki/wiki18-gte/corpus-row-offsets.npy
 
 # The whole raw parquet, without filtering or deduplication against eval

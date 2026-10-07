@@ -44,6 +44,7 @@ Contents:
 │   ├── answer_judge.py          reader + LLM judge (OpenAI-compatible vLLM client)
 │   ├── build_index_wiki_gte.py  GTE embeddings of the corpus (+ FAISS FlatIP index)
 │   ├── build_title_table.py     row → title table used by the per-title quota
+│   ├── prepare_search_index.py  points a downloaded index at the local corpus (offsets)
 │   ├── build_searchr1_eval.py   Search-R1 test.parquet → seven evaluation JSONL files
 │   ├── build_musique_eval.py    MuSiQue-Ans → HotpotQA schema
 │   ├── build_train_mix.py       raw NQ + HotpotQA training mix (optional training variant)
@@ -73,10 +74,9 @@ stage needs a single GPU that holds the matrix plus the tower and a batch of
 states. Training used about 72 GB of one H200. The reader/judge vLLM server
 runs on a separate GPU (a fraction of an H200 is enough for Qwen3-4B).
 
-**Disk.** Wiki-18 corpus 14.4 GB; GTE embedding shards 60.1 GiB; the FAISS
-FlatIP file written by the index builder 64.6 GB (direct search does not read
-it, so it can be deleted afterwards); offsets and title tables < 0.5 GB; one
-training checkpoint 7.3 GB.
+**Disk.** About 90 GB for the released artifacts: Wiki-18 corpus 14.4 GB,
+GTE embedding shards 64.6 GB, offsets and title tables 0.3 GB, checkpoint
+7.3 GB, training questions 0.65 GB.
 
 **Software.** Python 3.11, PyTorch 2.10 with CUDA, Docker for the vLLM server.
 The exact package versions are in [requirements.txt](requirements.txt).
@@ -121,33 +121,86 @@ are not needed for the results below.
 
 ## 1. Reproducing the inference results
 
-### 1.1 Data
+### 1.1 Released artifacts
 
-Expected layout under `$DATA` (the names match the configs):
+Everything that is expensive to rebuild is released on Hugging Face:
+
+| Artifact | Repository | Size |
+|---|---|---:|
+| Wiki-18 corpus, GTE embedding matrix, offsets and title table | [`Q-RAG/fullwiki-retrieval-dateset`](https://huggingface.co/datasets/Q-RAG/fullwiki-retrieval-dateset) | 79 GB |
+| Trained state tower (`model_best.pt`) | [`Q-RAG/qrag-ft-gte-on-fullwiki-qwen3-judge`](https://huggingface.co/Q-RAG/qrag-ft-gte-on-fullwiki-qwen3-judge) | 7.3 GB |
+| Training questions for section 2 | [`Q-RAG/Clear_2wiki_hotpot`](https://huggingface.co/datasets/Q-RAG/Clear_2wiki_hotpot) | 0.65 GB |
+
+The evaluation questions come from public sources (section 1.3).
+
+### 1.2 Corpus and embedding matrix
+
+Download the retrieval dataset into `$DATA/full-wiki`, so that the index ends
+up at `$DATA/full-wiki/wiki18-gte` as the configs expect:
+
+```bash
+huggingface-cli download Q-RAG/fullwiki-retrieval-dateset --repo-type dataset --local-dir $DATA/full-wiki
+python src/prepare_search_index.py --index-dir $DATA/full-wiki/wiki18-gte \
+    --corpus $DATA/full-wiki/wiki_dump.jsonl
+```
+
+The second command records the local corpus path in the index manifest and
+rebuilds the byte offsets of the corpus rows (under a minute): the offsets
+store the corpus path, size and modification time, so a downloaded copy does
+not pass their check as is. Do not move or touch the corpus afterwards, or run
+the command again.
+
+Contents of `$DATA/full-wiki`:
+
+| Path | Contents |
+|---|---|
+| `wiki_dump.jsonl` | Wiki-18 in 100-word passages (the corpus used by Search-R1), 21,015,324 rows, SHA-256 `43d7d3f58d01d711d95b00b70584211eea639fa46802905a4b7e11cf0617752d`. Row `i` has `"id": "i"`; embedding rows and corpus rows refer to the same passage, so the file must not be reordered or filtered |
+| `wiki18-gte/embedding-shards/` | `gte-multilingual-base` (revision `9bbca17d…`) embeddings of all passages: fp16 inference, fp32 storage, L2-normalised, 211 shards of 100,000 × 768 (60.1 GiB) |
+| `wiki18-gte/manifest.json` | encoder, corpus and shard metadata, checked before every search |
+| `wiki18-gte/corpus-row-offsets.*` | byte offset of every corpus row |
+| `wiki18-gte/corpus-title-ids.*` | row → title id table (int32) used by the per-title quota, and the title list |
+
+<details>
+<summary>Rebuilding the embedding matrix from scratch (optional)</summary>
+
+The same artifacts can be rebuilt from the corpus. The Search-R1 release
+`PeterJinGo/wiki-18-corpus` contains the identical file (its
+`wiki-18.jsonl.gz` is a gzipped tar archive that unpacks into
+`data00/jiajie_jin/flashrag_indexes/wiki_dpr_100w/wiki_dump.jsonl`; move it to
+`$DATA/full-wiki/wiki_dump.jsonl`). `--device` takes any list of GPUs and only changes the build time; the FAISS
+file written by `--phase all` (64.6 GB) is not used by direct search.
+
+```bash
+INDEX=$DATA/full-wiki/wiki18-gte
+CORPUS=$DATA/full-wiki/wiki_dump.jsonl
+
+python src/build_index_wiki_gte.py \
+  --corpus $CORPUS --output-dir $INDEX \
+  --model Alibaba-NLP/gte-multilingual-base \
+  --revision 9bbca17d9273fd0d03d5725c7a4b0f6b45142062 \
+  --device cuda:0,cuda:1,cuda:2,cuda:3 \
+  --model-dtype float16 --cache-dtype float32 \
+  --max-length 256 --batch-size 256 --multi-process-chunk-size 1000 \
+  --shard-size 100000 --truncation-samples-per-shard 2048 \
+  --phase all --index-name gte-multilingual-base.flatip.faiss \
+  --verify-samples 128 --seed 42 --trust-remote-code
+python src/build_title_table.py --index-dir $INDEX --output $INDEX/corpus-title-ids.npy
+python src/prepare_search_index.py --index-dir $INDEX --corpus $CORPUS
+```
+
+</details>
+
+### 1.3 Evaluation questions
+
+Expected layout under `$DATA` besides `full-wiki/` (the names match the
+configs):
 
 ```text
 $DATA/
-├── full-wiki/
-│   ├── data00/jiajie_jin/flashrag_indexes/wiki_dpr_100w/wiki_dump.jsonl   Wiki-18 corpus
-│   └── wiki18-gte/                                                        built in 1.2
-├── hotpotqa/hotpot_dev_fullwiki_v1.json                                   HotpotQA dev (fullwiki)
-├── 2WikiMultiHopQA/data_ids_april7/dev.json                               2WikiMultiHopQA dev
-└── musique/musique_ans_v1.0_dev.jsonl                                     MuSiQue-Ans dev
+├── hotpotqa/hotpot_dev_fullwiki_v1.json          HotpotQA dev (fullwiki)
+├── 2WikiMultiHopQA/data_ids_april7/dev.json      2WikiMultiHopQA dev
+└── musique/musique_ans_v1.0_dev.jsonl            MuSiQue-Ans dev
 ```
-
-**Corpus.** Wiki-18 in 100-word passages, as distributed with Search-R1
-(`PeterJinGo/wiki-18-corpus` on Hugging Face). Despite its name,
-`wiki-18.jsonl.gz` is a gzipped tar archive that unpacks into the path above:
-
-```bash
-huggingface-cli download PeterJinGo/wiki-18-corpus wiki-18.jsonl.gz --repo-type dataset --local-dir $DATA/full-wiki
-tar -xzf $DATA/full-wiki/wiki-18.jsonl.gz -C $DATA/full-wiki
-sha256sum $DATA/full-wiki/data00/jiajie_jin/flashrag_indexes/wiki_dpr_100w/wiki_dump.jsonl
-# 43d7d3f58d01d711d95b00b70584211eea639fa46802905a4b7e11cf0617752d  (21,015,324 lines, 14,393,573,105 bytes)
-```
-
-Row `i` of the file has `"id": "i"`; FAISS ids, embedding-shard rows and corpus
-rows all refer to the same passage, so do not reorder or filter the file.
 
 **Search-R1 benchmarks (main table).** The seven evaluation splits used by
 Search-R1 are a single `test.parquet` in `PeterJinGo/nq_hotpotqa_train`. The
@@ -183,54 +236,23 @@ python src/build_musique_eval.py --input $DATA/musique/musique_ans_v1.0_dev.json
 # SHA-256 a2996d330e2a82274282ad39d3664977d80b75f2d1d9db6b9d0584495ba7d5d0, 2,417 lines
 ```
 
-### 1.2 Embedding matrix, offsets and title table
-
-These are built once per corpus. The embedding step encodes all 21M passages
-with `gte-multilingual-base` (fp16 inference, fp32 cache, L2-normalised, 211
-shards of 100,000 rows); `--device` takes any list of GPUs and only changes
-the build time.
-
-```bash
-INDEX=$DATA/full-wiki/wiki18-gte
-CORPUS=$DATA/full-wiki/data00/jiajie_jin/flashrag_indexes/wiki_dpr_100w/wiki_dump.jsonl
-
-python src/build_index_wiki_gte.py \
-  --corpus $CORPUS --output-dir $INDEX \
-  --model Alibaba-NLP/gte-multilingual-base \
-  --revision 9bbca17d9273fd0d03d5725c7a4b0f6b45142062 \
-  --device cuda:0,cuda:1,cuda:2,cuda:3 \
-  --model-dtype float16 --cache-dtype float32 \
-  --max-length 256 --batch-size 256 --multi-process-chunk-size 1000 \
-  --shard-size 100000 --truncation-samples-per-shard 2048 \
-  --phase all --index-name gte-multilingual-base.flatip.faiss \
-  --verify-samples 128 --seed 42 --trust-remote-code
-
-# byte offsets of corpus rows, so that chunk texts are read without scanning the file
-python src/fullwiki_qrag.py prepare --index-dir $INDEX
-
-# row → title id table (int32, 84 MB) used by the per-title quota
-python src/build_title_table.py --index-dir $INDEX --output $INDEX/corpus-title-ids.npy
-```
-
-The index manifest records the corpus path, size and modification time, and
-the offsets check them, so do not move or touch the corpus after this step.
-
-### 1.3 Trained checkpoint
+### 1.4 Trained checkpoint
 
 The evaluation configs expect the trained tower at
+`Q-RAG_for_full-wiki/runs/Aug03_12-44-38_lineA_main/model_best.pt` (SHA-256
+`c8b2212d4b1e04449623a35acabe2ea8abc06d09acc22b6a87e29a2ea5c9db36`). That
+directory already holds the training-time `config.yaml`, which the search code
+reads next to the checkpoint, so download only the weights:
 
-```text
-Q-RAG_for_full-wiki/runs/Aug03_12-44-38_lineA_main/model_best.pt
-SHA-256 c8b2212d4b1e04449623a35acabe2ea8abc06d09acc22b6a87e29a2ea5c9db36 (7,333,936,023 bytes)
+```bash
+huggingface-cli download Q-RAG/qrag-ft-gte-on-fullwiki-qwen3-judge model_best.pt \
+    --local-dir Q-RAG_for_full-wiki/runs/Aug03_12-44-38_lineA_main
 ```
 
-The checkpoint is not stored in git because of its size. Download it from
-<ARTIFACTS_URL> into that directory, or train your own tower as described in
-section 2 and point `retrieve.checkpoint` of the configs to it. The directory
-already contains the training-time `config.yaml`, which the search code reads
-next to the checkpoint. The zero-shot rows need no checkpoint.
+To evaluate a tower trained as in section 2, point `retrieve.checkpoint` of the
+configs to it instead. The zero-shot rows need no checkpoint.
 
-### 1.4 Reader and judge server
+### 1.5 Reader and judge server
 
 The reader and the judge are the same model, Qwen3-4B (snapshot
 `1cfa9a7208912126459214e8b04321603b3df60c`), served by vLLM 0.15.1 on
@@ -254,7 +276,7 @@ Decoding is fixed by the pipeline: thinking disabled, temperature 0, at most
 context. The judge stage splits the questions into 32 contiguous shards and
 queries the server in parallel; this only affects speed.
 
-### 1.5 Running an evaluation
+### 1.6 Running an evaluation
 
 Every evaluation is one config and one command. `make dry` prints the exact
 commands without running anything; `make experiment` runs retrieve → judge →
@@ -278,7 +300,7 @@ number reported in the main table), `em` and `f1` against the first answer
 only, `judge` (LLM-judge accuracy) and, where gold titles exist, title recall
 metrics.
 
-### 1.6 Main table: seven Search-R1 benchmarks
+### 1.7 Main table: seven Search-R1 benchmarks
 
 EM with answer aliases (%), Qwen3-4B reader, Wiki-18 corpus:
 
@@ -306,7 +328,7 @@ your run of that config first. The Search-R1 baselines reported next to these
 rows were evaluated with the Search-R1 code and are not part of this
 repository.
 
-### 1.7 Dev splits (single-answer EM)
+### 1.8 Dev splits (single-answer EM)
 
 The eight top-level configs in `configs/` produce the runs in `runs/<run>/`.
 These numbers use EM against the single gold answer (`em` in `metrics.json`):
@@ -375,16 +397,24 @@ section 1.2 (`envs.index.shard_dir`, `envs.corpus`, `envs.offsets`,
 `envs.title_table` in `envs/fullwiki_search.yaml`), plus:
 
 - **Training questions** (`envs.train_data_path`):
-  `hotpotqa_2wiki_candidate_train_q0_s1.jsonl`, 120,631 HotpotQA and
-  2WikiMultiHopQA training questions, SHA-256
-  `831b9007161394fdafd11e3ffdff50dc662f528d47c581f3583d24908c5e7311`,
-  available from <ARTIFACTS_URL>. It is the `q0_s1` subset produced by
+  `hotpotqa_2wiki_candidate_train_q0_s1.jsonl` from
+  [`Q-RAG/Clear_2wiki_hotpot`](https://huggingface.co/datasets/Q-RAG/Clear_2wiki_hotpot),
+  120,631 HotpotQA and 2WikiMultiHopQA training questions, SHA-256
+  `831b9007161394fdafd11e3ffdff50dc662f528d47c581f3583d24908c5e7311`
+  (the repository also holds the two halves separately):
+
+  ```bash
+  huggingface-cli download Q-RAG/Clear_2wiki_hotpot hotpotqa_2wiki_candidate_train_q0_s1.jsonl \
+      --repo-type dataset --local-dir $DATA
+  ```
+
+  It is the `q0_s1` subset produced by
   `Q-RAG_for_full-wiki/gig_pipeline/` (questions the reader cannot answer
   without context but answers from the gold supporting facts). The search
   environment reads only `question`, `answer` and `supporting_facts`; the
   candidate fields used by the distractor setting are ignored.
 - **Validation questions** (`envs.eval_data_path`): the directory with
-  `hotpot_dev_fullwiki_v1.json` from section 1.1.
+  `hotpot_dev_fullwiki_v1.json` from section 1.3.
 
 `envs/fullwiki_search.yaml` expects the training file at
 `$DATA/hotpotqa_2wiki_candidate_train_q0_s1.jsonl` after the placeholder
@@ -402,7 +432,7 @@ export VLLM_API_KEY=                 # empty for a local server
 ```
 
 The published tower used the same Qwen3-4B snapshot and server settings as
-evaluation (section 1.4). Use a separate server for training if evaluations
+evaluation (section 1.5). Use a separate server for training if evaluations
 run at the same time.
 
 ### 2.4 Launch
@@ -425,7 +455,7 @@ second GPU.
 
 To evaluate a new tower, set `retrieve.checkpoint` in the evaluation configs
 (e.g. `configs/configs_history/sr1_<dataset>_best.yaml`) to its
-`model_best.pt` and run section 1.5.
+`model_best.pt` and run section 1.6.
 
 ### 2.5 Optional: raw NQ + HotpotQA mix
 
@@ -452,7 +482,7 @@ make test                                            # pipeline tests, no GPU or
 cd Q-RAG_for_full-wiki && HF_HUB_OFFLINE=1 python -m pytest tests/   # training package tests
 ```
 
-In a fresh clone the expected result is `146 passed, 7 skipped` for the
+In a fresh clone the expected result is `148 passed, 7 skipped` for the
 pipeline and `70 passed, 7 skipped` for the training package. Skipped tests
 need artifacts that are not in git (saved run payloads, the raw training mix,
 or the upstream Q-RAG code used for regression checks of the vendored
