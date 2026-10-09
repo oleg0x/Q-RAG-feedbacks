@@ -11,6 +11,7 @@ from rl.feedback.llm_answer import get_final_answer, prepare_examples
 from utils.process_latex import process_latex_for_cmp, simplify_latex
 
 logger = logging.getLogger(__name__)
+logging.getLogger().setLevel(logging.WARNING)
 
 _MULTI_HOP_QA_TASKS = frozenset({"HotPotQA", "Musique", "2WikiMultihopQA"})
 

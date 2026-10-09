@@ -9,9 +9,9 @@ ground_truth:
 
 gold_shift:
   _target_: rl.feedback.GoldShiftFeedback
-  api_base_url: ${oc.env:VLLM_BASE_URL,http://localhost:8000}
-  model_name: ${oc.env:VLLM_MODEL,Qwen/Qwen3-4B}
-  api_key: ${oc.env:VLLM_API_KEY,''}
+  api_base_url: http://localhost:9100/v1
+  model_name: Qwen3-4B
+  api_key: ''
   only_at_final: True
   never_terminate: ${feedback.never_terminate}
   reward_scaling: 0.1

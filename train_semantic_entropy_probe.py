@@ -1254,6 +1254,7 @@ def main() -> None:
     actual_layers = _resolve_layers(args.layers, n_model_layers=extractor.n_layers)
 
     if args.save_dataset:
+        Path(args.save_dataset).parent.mkdir(parents=True, exist_ok=True)
         np.savez(
             args.save_dataset,
             X=X,

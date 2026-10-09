@@ -2,7 +2,7 @@
 
 **Q-RAG** is a resource-efficient method for **multi-step retrieval** trained with reinforcement learning directly in the latent space of text-chunk embeddings. Instead of expensive LLM fine-tuning, Q-RAG trains only a lightweight embedder agent using value-based RL (temporal difference learning), keeping the LLM frozen. This repository provides the full training and evaluation code to reproduce the results from the paper.
 
-We consider the following rewards:
+The following rewards are supported:
 * Exact Match
 * LLM-as-a-Judge
 * Information Gain
@@ -34,6 +34,7 @@ The hyperparameters are set in `configs/`. Useful files are:
 ## Training 
 
 Here is how to train Q-RAG with each reward on HotPotQA.
+
 Modify `configs/envs/hotpotqa.yaml` to specify your `data_path`.
 
 ### Start vLLM
@@ -43,7 +44,7 @@ Before training Q-RAG with different rewards, start vLLM server with the command
 CUDA_VISIBLE_DEVICES=1 vllm serve ~/Qwen/Qwen3-4B \
 --served-model-name "Qwen3-4B" \
 --host 0.0.0.0 \
---port 9000 \
+--port 9100 \
 --tensor-parallel-size 1 \
 --gpu-memory-utilization 0.3
 ```
@@ -73,20 +74,24 @@ Modify `configs/feedback/llm.yaml` to specify your `model`, port (in `base_url`)
 ### Information Gain
 
 ```bash
-python train_q_rag.py \
+CUDA_VISIBLE_DEVICES=0 python train_q_rag.py \
   algo=pqn_e5_hotpotqa \
   envs=hotpotqa \
-  feedback=gold_shift \
+  feedback=gold_shift
 ```
 Modify `configs/feedback/gold_shift.yaml` to specify your `model`, port (in `base_url`) and `api_key`.
 
 ### Group Information Gain
 
+Download this file:
+https://huggingface.co/datasets/Q-RAG/Clear_2wiki_hotpot/blob/main/hotpot_candidate_train_q0_s1.jsonl
+and specify a path to it in `configs/envs/hotpotqa_candidate.yaml`.
+
 ```bash
-python train_q_rag.py \
+CUDA_VISIBLE_DEVICES=0 python train_q_rag.py \
   algo=pqn_e5_hotpotqa \
   envs=hotpotqa_candidate \
-  feedback=candidate_beta \
+  feedback=candidate_beta
 ```
 Modify `configs/feedback/candidate_beta.yaml` to specify your `model`, port (in `base_url`) and `api_key`.
 
@@ -94,10 +99,10 @@ Modify `configs/feedback/candidate_beta.yaml` to specify your `model`, port (in 
 
 Train SEP model first:
 ```bash
-python train_semantic_entropy_probe.py \
+CUDA_VISIBLE_DEVICES=0 python train_semantic_entropy_probe.py \
 --dataset hotpotqa \
---dataset_path ../datasets/hotpotqa \
---model_name Qwen/Qwen3-4B \
+--dataset_path ../Datasets/Hotpotqa \
+--model_name ../Qwen/Qwen3-4B \
 --split train  \
 --max_samples 2000  \
 --n_samples 10 \
@@ -110,15 +115,14 @@ python train_semantic_entropy_probe.py \
 ```
 Then train Q-RAG:
 ```bash
-python train_q_rag.py \
+CUDA_VISIBLE_DEVICES=0 python train_q_rag.py \
   algo=pqn_e5_hotpotqa \
   envs=hotpotqa \
-  feedback=default \
+  feedback=defaults \
   feedback.type=sep \
-  feedback.sep_probe_path=runs/SEP_models/sep_probe_hotpot_2000_qwen3.pkl \
-  feedback.sep_model_name=Qwen3-4B
+  feedback.sep_probe_path=runs/SEP_models/sep_probe_hotpot_2000_qwen3.pkl
 ```
-Modify parameters in configs/feedback/defaults.yaml, id needed
+Modify parameters in `configs/feedback/defaults.yaml`, if needed.
 
 ### Synthetic Semantic Information Gain
 
@@ -126,11 +130,11 @@ Modify parameters in configs/feedback/defaults.yaml, id needed
 CUDA_VISIBLE_DEVICES=0 python train_q_rag.py \
   algo=pqn_e5_hotpotqa \
   envs=hotpotqa \
-  feedback=default \
+  feedback=defaults \
   feedback.type=info_gain \
   feedback.task=HotPotQA 
 ```
-Modify parameters in configs/feedback/defaults.yaml, id needed
+Modify parameters in `configs/feedback/defaults.yaml`, if needed.
 
 
 

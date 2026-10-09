@@ -124,7 +124,7 @@ feedback_dict:
   #  _target_: envs.text_env.RelativePositionProcessor
 
 
-model: ${oc.env:VLLM_MODEL,Qwen/Qwen3-4B}
+model: Qwen3-4B
 task: ${envs.task}
 reward_scaling: 1.0
 
@@ -143,8 +143,8 @@ vllm_config:
 
 
 use_api: true
-api_base_url: ${oc.env:VLLM_BASE_URL,http://localhost:10001/v1}
-api_key: ${oc.env:VLLM_API_KEY,''}
+api_base_url: http://localhost:9100/v1
+api_key: ''
 max_at_same_time: 20
 
 metric:
@@ -159,11 +159,11 @@ prompt_formatter:
 #   feedback.sep_probe_path=runs/SEP_models/sep_probe_babi1000.pkl
 # sep_model_name must match the HF id used when training the probe (HiddenStateExtractor).
 sep_probe_path: "./runs/SEP_models/sep_probe_hotpot_2000_qwen3_last.pkl"
-sep_model_name: "Qwen/Qwen3-4B"
+sep_model_name: ../Qwen/Qwen3-4B
 sep_reward_mode: "uncertainty_penalty"   # uncertainty_penalty | uncertainty_drop | uncertainty_threshold
 sep_threshold: 0.5
 sep_only_at_final: true
-sep_device: "auto"
+sep_device: "cuda"
 sep_torch_dtype: "bfloat16"
 sep_max_new_tokens: 512           # max tokens to generate for probe inference;
                                   # for TBG position hidden state is read before generation
@@ -202,7 +202,7 @@ ig_reward_mode: "golden_class"            # golden_class (Eq.17) | entropy_reduc
 ig_reward_scaling: 0.6                    # λ in the paper (Eq. 18); 0.6 is optimal (Table 2)
 ig_em_weight: 1.0                         # weight for exact-match term at episode end (Eq. 18)
 ig_nli_model: "microsoft/deberta-base-mnli"
-ig_nli_device: "cpu"                      # NLI model device; "cpu" saves GPU for vLLM
+ig_nli_device: "cuda"                     # NLI model device; "cpu" saves GPU for vLLM
 ig_nli_threshold: 0.5                     # τ for bidirectional NLI entailment decisions (Def 4.1)
 ig_cache_prior: true                      # cache prior belief per episode (question doesn't change)
 ig_sampling_params:
