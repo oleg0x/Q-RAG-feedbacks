@@ -6,12 +6,13 @@ feedback_dict:
 
 llm_answer:
   _target_: rl.feedback.LlmAnswer
-  model: ${oc.env:VLLM_MODEL,Qwen3-4B}
-  base_url: ${oc.env:VLLM_BASE_URL,http://localhost:9000/v1}
-  api_key: ${oc.env:VLLM_API_KEY,'eds43det1'}
+  model: Qwen3-4B
+  base_url: http://localhost:9100/v1
+  api_key: ''
   max_tokens: 1000
   thinking: false
   task: ${envs.task}
+  reward_type: exact-match  # exact-match or llm-judge
 
 occ_status:
   _target_: rl.feedback.OccStatus

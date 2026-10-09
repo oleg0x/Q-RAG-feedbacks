@@ -1,17 +1,12 @@
 # Model Configuration
-# Dim/layers MUST match the HF checkpoint:
-#   all-MiniLM-L6-v2         → 6 layers, input_dim 384  (~22M params)
-#   multilingual-e5-small    → 12 layers, input_dim 384 (~118M)
-#   multilingual-e5-base     → 12 layers, input_dim 768
-#   multilingual-e5-large    → 24 layers, input_dim 1024
 model:
-  model_name: "sentence-transformers/all-MiniLM-L6-v2"
+  model_name: "intfloat/multilingual-e5-large"
   revision: "main"
   use_fast_tokenizer: true
   predictor:
-    num_layers: 6
-    input_dim: 384
-    hidden_dim: 256
+    num_layers: 24
+    input_dim: 1024
+    hidden_dim: 512
     output_dim: 1
     max_seq_len: 5000
     interpolate_factor: 1 # used only in action embedder for chunks positional index interpolation
@@ -89,8 +84,6 @@ pqn:
     accumulate_grads: ${accumulate_grads}
     action_embed_length: ${max_action_length}
     max_action_length_in_memory: 128
-    #train_state_embed: true
-    #train_action_embed: ${train_action_embed}
 
   optimizer:
     _target_: torch.optim.AdamW

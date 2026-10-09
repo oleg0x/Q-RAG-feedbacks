@@ -1,5 +1,3 @@
-"""OpenAI-SDK client used by Q-ICL feedback models."""
-
 import asyncio
 import logging
 import os

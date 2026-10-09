@@ -114,8 +114,6 @@ def load_config(name, overrides=None):
             config_name=name,
             overrides=sys.argv[1:] #overrides if overrides else []
         )
-        #cli_cfg = OmegaConf.from_cli()
-        #cfg = OmegaConf.merge(cfg, cli_cfg)
         cfg = prepare_config(cfg)
         return cfg
 
@@ -128,10 +126,6 @@ def prepare_config(cfg):
         dir_name = datetime.now().strftime("%b%d_%H-%M-%S") + cfg.logger.tensorboard.comment
         cfg.logger.log_dir = os.path.join(cfg.logger.log_dir, dir_name)
         cfg.logger.tensorboard.log_dir = os.path.join(cfg.logger.log_dir, 'tb_logs/')
-
-    # enumerate_facts = (cfg.positional_coding == 'enum') #TODO: add version that enumerate all chunks
-    # cfg.envs.env.dataset.task_dataset.add_sentence_idx = enumerate_facts
-    # cfg.envs.test_env.dataset.task_dataset.add_sentence_idx = enumerate_facts
     return cfg
 
 
@@ -144,15 +138,12 @@ def set_all_seeds(seed):
 
 
 cfg: DictConfig = load_config(name="training.yaml")
-#cfg: DictConfig = load_config(name=os.getenv("Q_RAG_CONFIG_NAME", "training.yaml"))
-#cfg: DictConfig = load_config(name="training_hotpotqa.yaml")
-
 
 writer: SummaryWriter = instantiate(cfg.logger.tensorboard)
 os.makedirs(cfg.logger.log_dir, exist_ok=True)
 config_save_path = os.path.join(cfg.logger.log_dir, "config.yaml")
 OmegaConf.save(config=cfg, f=config_save_path, resolve=False)
-print(f"[INFO] Training config saved to {config_save_path}")
+print(f"Training config saved to {config_save_path}")
 
 agent_config: DictConfig = cfg.algo
 env_config: DictConfig = cfg.envs
@@ -168,23 +159,6 @@ set_all_seeds(cfg.seed)
 
 agent = PQN(agent_config)
 
-# if bf16:
-#     for m in [agent.critic, agent.policy, agent.random_policy,
-#               agent.v_net_target, agent.action_embed_target]:
-#         m.to(dtype=torch.bfloat16)
-#
-# if args.fp16:
-#     # import apex
-#     # apex.amp.register_half_function(torch, 'einsum')
-#     from torch.cuda.amp import autocast, GradScaler
-#
-#     scaler = GradScaler()
-#
-# device_type = torch.device(cfg.device).type
-# amp_dtype = torch.bfloat16 if bf16 else torch.float16
-# amp_enabled = bf16 or mixed_precision
-# autocast = torch.cuda.amp.autocast if device_type == 'cuda' else torch.autocast
-
 env: QAEnv = instantiate(env_config.env)
 env_test: QAEnv = instantiate(env_config.test_env)
 parallel_env = ParallelTextEnv(
@@ -194,7 +168,6 @@ parallel_env = ParallelTextEnv(
 
 total_steps = cfg.steps_count * cfg.accumulate_grads
 eval_interval = cfg.eval_interval * cfg.accumulate_grads
-#assuming we don't need to scale cfg.learning_start with grad_accumulation
 progress_bar = tqdm(range(total_steps), desc="Training")
 
 states_list, _ = parallel_env.reset()
@@ -212,7 +185,6 @@ for it in progress_bar:
         online_models_train_mode=True,
     )
     step += train_batch.reward.numel()
-    #assert train_batch.reward.numel() == np.prod(train_batch.reward.shape)
     train_rewards.extend(rewards)
 
     qf_loss = agent.update(
@@ -224,7 +196,6 @@ for it in progress_bar:
         train_batch.not_done)
     
     if it % eval_interval == 0:
-
         agent.eval()
         
         writer.add_scalar("train r_sum", np.mean(train_rewards), step)
@@ -267,9 +238,7 @@ for it in progress_bar:
                     np.mean([item[metric_name] for item in fixed_eval_metrics]),
                     step,
                 )
-            for source in sorted(
-                {item["source"] for item in fixed_eval_metrics}
-            ):
+            for source in sorted({item["source"] for item in fixed_eval_metrics}):
                 source_metrics = [
                     item
                     for item in fixed_eval_metrics
@@ -301,13 +270,12 @@ for it in progress_bar:
         writer.add_scalar("eval r_sum", np.mean(r_eval), step)
 
         progress_bar.set_postfix({
-                'reward': np.mean(train_rewards),
-                "eval_reward": np.mean(r_eval),
-                'qf_loss': qf_loss,
-                'step': step,
-            })
+            'reward': np.mean(train_rewards),
+            "eval_reward": np.mean(r_eval),
+            'qf_loss': qf_loss,
+            'step': step,
+        })
         agent.save(ckpt_last_path)
-            #torch.save(agent.state_dict(), ckpt_last_path)
 
         mean_eval_reward = np.mean(r_eval)
         if mean_eval_reward > best_eval_reward:
@@ -316,4 +284,3 @@ for it in progress_bar:
             print(f"\nNew best model has been saved: step={step}, eval_reward={mean_eval_reward:.3f}")
 
         train_rewards = []
-

@@ -21,7 +21,7 @@ Always end your response with "Final Answer: [your final answer]"."""
 
 sys_math = r"""You are a precise solver of math problems.
 Keep your reasoning brief. Use LaTeX for mathematical operations and simplify the result.
-Give the final answer in the format "\boxed{final_answer}"."""
+Give the final answer in the format "\\boxed{final_answer}"."""
 
 sys_hellaswag = """Select the option that most logically follows from the context.
 The entire final answer must be a single letter: A, B, C, or D."""
