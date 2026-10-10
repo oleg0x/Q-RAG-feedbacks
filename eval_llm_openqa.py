@@ -81,7 +81,6 @@ print(f"Samples in dataset: {len(dataset)}")
 #os.environ["TORCH_COMPILE_DISABLE"] = "1"
 #os.environ["VLLM_DISABLE_CUDA_GRAPHS"] = "1"
 
-
 '''
 qa_instruction_prompt = """You are a question-answer long-context system.
 Carefully read all context, pay attention on crucial facts and accurately answer the given question.
@@ -101,7 +100,6 @@ QUESTION:
 
 YOUR ANSWER: """
 '''
-
 
 # qa_instruction_prompt = """Answer the question based on the given passages.
 # Only give me the short and precise answer, do not output any other words.
@@ -131,15 +129,6 @@ QUESTION:
 {question}
 
 Return only the short answer."""
-
-
-
-# def build_messages(prompt):
-#     messages = [
-#         {"role": "system", "content": "You are Qwen, a helpful assistant. You need to answer the question briefly."},
-#         {"role": "user", "content":f"{prompt}"}
-#         ]
-#     return messages
 
 
 def normalize_answer(s: str) -> str:
@@ -310,16 +299,6 @@ for i, (data, output, filt) in enumerate(tqdm(zip(dataset, outputs, all_filtered
         with open(output_file_path, 'w', encoding='utf-8') as f_out:
             json.dump(results, f_out, indent=4, ensure_ascii=False)
         print(f"--- {i+1}/{len(dataset)}: Intermediate results saved. ---")
-
-    # if (i + 1) % 10 == 0:
-    #     avg_em = sum(all_em_scores) / len(all_em_scores)
-    #     avg_f1 = sum(all_f1_scores) / len(all_f1_scores)
-    #     print("=" * 50)
-    #     print(f"Samples processed: {len(all_em_scores)}")
-    #     print(f"Average Exact Match (EM): {avg_em:.4f}")
-    #     print(f"Average F1-Score: {avg_f1:.4f}")
-    #     print("=" * 50)
-
 
 all_judge_scores = []
 if args.llm_judge:
