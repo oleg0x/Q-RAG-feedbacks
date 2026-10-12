@@ -160,3 +160,9 @@ CUDA_VISIBLE_DEVICES=0 python eval_llm_openqa.py \
   --retriever_logfile=runs/Oct10_06-53-11_QRAG_HotPotQA/eval_seed42_ns50.jsonl
 ```
 Replace `--retriever_logfile` with the log file produced in Stage 1.
+
+## Notes
+
+* The code was shared on Sep 25, 2026.
+* This README was added on Oct 12, 2026.
+* ⚠️ The full Wiki setting implementation is not available here, because Anonymous GitHub only exports one branch of the original repository, and the full-Wiki code resides on another branch.
