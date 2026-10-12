@@ -86,7 +86,7 @@ Modify `configs/feedback/gold_shift.yaml` to specify your `model`, port (in `bas
 
 Download this file:
 
-https://huggingface.co/datasets/Q-RAG/Clear_2wiki_hotpot/blob/main/hotpot_candidate_train_q0_s1.jsonl
+https://drive.google.com/file/d/1Dx8ym7cnPIQf95j7zxIIRuFZ4R8DKnVQ/view?usp=drive_link
 
 Set its path in `configs/envs/hotpotqa_candidate.yaml`.
 
