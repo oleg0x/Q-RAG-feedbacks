@@ -13,7 +13,7 @@ batch_size: 64
 accumulate_grads: 2
 train_action_embed: true
 eval_interval: 200
-eval_episodes: 20 #500
+eval_episodes: 500
 envs_parallel: 1
 max_action_length: 256
 max_action_length_in_memory: 128
